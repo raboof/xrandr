@@ -1,5 +1,5 @@
 /*
- * $XFree86: xc/programs/xrandr/xrandr.c,v 1.12 2002/11/01 20:04:00 keithp Exp $
+ * $XFree86: xc/programs/xrandr/xrandr.c,v 1.11 2002/10/14 18:01:43 keithp Exp $
  *
  * Copyright © 2001 Keith Packard, member of The XFree86 Project, Inc.
  * Copyright © 2002 Hewlett Pacard Company, Inc.

@@ -19,7 +19,7 @@
 .\" PERFORMANCE OF THIS SOFTWARE.
 .\"
 .\"
-.\" $XFree86: xc/programs/xrandr/xrandr.man,v 1.7 2003/07/17 19:26:33 herrb Exp $
+.\" $XFree86: xc/programs/xrandr/xrandr.man,v 1.6 2003/06/12 14:12:39 eich Exp $
 .\"
 .TH XRANDR 1 "Version 1.0" "XFree86"
 .SH NAME

@@ -27,6 +27,5 @@ xrandr_LDADD = $(XRANDR_LIBS)
 xrandr_SOURCES =	\
         xrandr.c
 
-dist_man_MANS = \
+dist_man1_MANS = \
         xrandr.man
-

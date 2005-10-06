@@ -106,6 +106,7 @@ main (int argc, char **argv)
   int		reflection = 0;
   int		width = 0, height = 0;
   int		have_pixel_size = 0;
+  int		ret = 0;
 
   program_name = argv[0];
   if (argc == 1) query = 1;
@@ -330,6 +331,12 @@ main (int argc, char **argv)
 	       (SizeID) size, (Rotation) (rotation | reflection), rate, CurrentTime);
   
   XRRQueryExtension(dpy, &event_base, &error_base);
+
+  if (setit && status == RRSetConfigFailed) {
+     printf ("Failed to change the screen configuration!\n");
+     ret = 1;
+  }
+
   if (verbose && setit) {
     if (status == RRSetConfigSuccess)
       {
@@ -373,5 +380,5 @@ main (int argc, char **argv)
       }
   }
   XRRFreeScreenConfigInfo(sc);
-  return(0);
+  return(ret);
 }

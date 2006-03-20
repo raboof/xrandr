@@ -219,11 +219,14 @@ main (int argc, char **argv)
       if (sizes[size].width == width && sizes[size].height == height)
 	break;
     }
+    if (size >= nsize) {
+      fprintf (stderr,
+	       "Size %dx%d not found in available modes\n", width, height);
+      exit (1);
+    }
   }
   else if (size < 0)
     size = current_size;
-
-  if (size >= nsize) usage();
 
   if (rot < 0)
   {
@@ -240,6 +243,17 @@ main (int argc, char **argv)
 	rate = current_rate;
     else
 	rate = 0;
+  }
+  else
+  {
+    rates = XRRConfigRates (sc, size, &nrate);
+    for (i = 0; i < nrate; i++)
+      if (rate == rates[i])
+	break;
+    if (i == nrate) {
+      fprintf (stderr, "Rate %d not available for this size\n", rate);
+      exit (1);
+    }
   }
 
   if (version) {

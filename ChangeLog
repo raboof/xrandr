@@ -1,3 +1,9 @@
+2006-03-20  Adam Jackson  <ajax@freedesktop.org>
+
+	* xrandr.c:
+	Bug #5511, #5512: Print more sensible error messages when fed broken
+	command lines.  (Bill Crawford)
+
 2005-12-20  Kevin E. Martin  <kem-at-freedesktop-dot-org>
 
 	* configure.ac:

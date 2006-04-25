@@ -1,4 +1,4 @@
-/*
+/* $XdotOrg: $
  * $XFree86: xc/programs/xrandr/xrandr.c,v 1.11 2002/10/14 18:01:43 keithp Exp $
  *
  * Copyright © 2001 Keith Packard, member of The XFree86 Project, Inc.
@@ -191,7 +191,7 @@ main (int argc, char **argv)
   dpy = XOpenDisplay (display_name);
 
   if (dpy == NULL) {
-      fprintf (stderr, "Can't open display %s\n", display_name);
+      fprintf (stderr, "Can't open display %s\n", XDisplayName(display_name));
       exit (1);
   }
   if (screen < 0)

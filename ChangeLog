@@ -1,3 +1,9 @@
+2006-04-25  Alan Coopersmith  <alan.coopersmith@sun.com>
+
+	* xrandr.c: 
+	Don't try to fprintf a NULL string when -display wasn't passed and 
+	connecting to $DISPLAY failed, since that segfaults on some platforms.
+
 2006-03-20  Adam Jackson  <ajax@freedesktop.org>
 
 	* xrandr.c:

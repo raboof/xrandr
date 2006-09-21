@@ -107,9 +107,9 @@ main (int argc, char **argv)
     int		ret = 0;
     int		have_size = 0;
     int		major_version, minor_version;
-    RRMode	mode = 0;
+    RRMode	mode = (RRMode) -1;
     RRCrtc	crtc = 0;
-    RROutput	output = 0;
+    RROutput	output = (RROutput) -1;
     int		x = 0;
     int		y = 0;
     int		minWidth, minHeight;
@@ -262,20 +262,16 @@ main (int argc, char **argv)
 	XRRFreeOutputInfo (xoi);
     }
     for (i = 0; i < sr->nmode; i++) {
-	printf ("\tmode: 0x%x\n", sr->modes[i].id);
-	printf ("\t\tname: %s\n", sr->modes[i].name);
-	printf ("\t\twidth: %d\n", sr->modes[i].width);
-	printf ("\t\theight: %d\n", sr->modes[i].height);
-	printf ("\t\tmmWidth: %d\n", sr->modes[i].mmWidth);
-	printf ("\t\tmmHeight: %d\n", sr->modes[i].mmHeight);
-	printf ("\t\tdotClock: %d\n", sr->modes[i].dotClock);
-	printf ("\t\thSyncStart: %d\n", sr->modes[i].hSyncStart);
-	printf ("\t\thSyncEnd: %d\n", sr->modes[i].hSyncEnd);
-	printf ("\t\thTotal: %d\n", sr->modes[i].hTotal);
-	printf ("\t\tvSyncStart: %d\n", sr->modes[i].vSyncStart);
-	printf ("\t\tvSyncEnd: %d\n", sr->modes[i].vSyncEnd);
-	printf ("\t\tvTotal: %d\n", sr->modes[i].vTotal);
-	printf ("\t\tmodeFlags: 0x%x\n", sr->modes[i].modeFlags);
+	double	rate;
+	printf ("\tmode: 0x%04x", sr->modes[i].id);
+	printf (" %10.10s", sr->modes[i].name);
+	printf (" %5d x %5d ", sr->modes[i].width, sr->modes[i].height);
+	if (sr->modes[i].hTotal && sr->modes[i].vTotal)
+	    rate = ((double) sr->modes[i].dotClock / 
+		    ((double) sr->modes[i].hTotal * (double) sr->modes[i].vTotal));
+	else
+	    rate = 0;
+	printf (" %6.1f\n", rate);
     }
     if (sr == NULL) 
     {
@@ -291,17 +287,27 @@ main (int argc, char **argv)
     }
     if (setit)
     {
+	int noutput;
+	
 	if (!crtc)
 	    crtc = sr->crtcs[0];
 
-	if (!output)
+	switch (output) {
+	case None:
+	    noutput = 0;
+	    break;
+	case (RROutput) -1:
 	    output = sr->outputs[0];
+	default:
+	    noutput = 1;
+	    break;
+	}
 
-	if (mode)
+	if (mode != (RRMode) -1)
 	{
 	    Status status = 
 	    XRRSetCrtcConfig (dpy, sr, crtc, CurrentTime, x, y,
-			      mode, rotation, &output, 1);
+			      mode, rotation, &output, noutput);
 	    printf ("status: %d\n", status);
 	}
     }

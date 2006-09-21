@@ -88,7 +88,7 @@ main (int argc, char **argv)
     Status	status = RRSetConfigFailed;
     int		rot = -1;
     int		verbose = 0, query = 0;
-    Rotation	rotation, current_rotation, rotations;
+    Rotation	rotation = RR_Rotate_0, current_rotation, rotations;
     XEvent	event;
     XRRScreenChangeNotifyEvent *sce;    
     char          *display_name = NULL;
@@ -104,9 +104,16 @@ main (int argc, char **argv)
     int		event_base, error_base;
     int		reflection = 0;
     int		width = 0, height = 0;
-    int		have_pixel_size = 0;
     int		ret = 0;
+    int		have_size = 0;
     int		major_version, minor_version;
+    RRMode	mode = 0;
+    RRCrtc	crtc = 0;
+    RROutput	output = 0;
+    int		x = 0;
+    int		y = 0;
+    int		minWidth, minHeight;
+    int		maxWidth, maxHeight;
 
     program_name = argv[0];
     if (argc == 1) query = 1;
@@ -128,20 +135,26 @@ main (int argc, char **argv)
 	if (!strcmp ("-s", argv[i]) || !strcmp ("--size", argv[i])) {
 	    if (++i>=argc) usage ();
 	    if (sscanf (argv[i], "%dx%d", &width, &height) == 2)
-		have_pixel_size = 1;
+		have_size = 1;
 	    else {
-		size = atoi (argv[i]);
-		if (size < 0) usage();
+		usage();
 	    }
+	    continue;
+	}
+	if (!strcmp ("-m", argv[i]) || !strcmp ("--mode", argv[i])) {
+	    if (++i>=argc) usage ();
+	    mode = strtoul (argv[i], NULL, 0);
 	    setit = 1;
 	    continue;
 	}
-
-	if (!strcmp ("-r", argv[i]) || !strcmp ("--rate", argv[i])) {
+	if (!strcmp ("-c", argv[i]) || !strcmp ("--crtc", argv[i])) {
 	    if (++i>=argc) usage ();
-	    rate = atoi (argv[i]);
-	    if (rate < 0) usage();
-	    setit = 1;
+	    crtc = strtoul (argv[i], NULL, 0);
+	    continue;
+	}
+	if (!strcmp ("-o", argv[i]) || !strcmp ("--output", argv[i])) {
+	    if (++i>=argc) usage ();
+	    output = strtoul (argv[i], NULL, 0);
 	    continue;
 	}
 
@@ -151,13 +164,13 @@ main (int argc, char **argv)
 	}
 
 	if (!strcmp ("-x", argv[i])) {
-	    reflection |= RR_Reflect_X;
-	    setit = 1;
+	    if (++i>=argc) usage ();
+	    x = strtoul (argv[i], NULL, 0);
 	    continue;
 	}
 	if (!strcmp ("-y", argv[i])) {
-	    reflection |= RR_Reflect_Y;
-	    setit = 1;
+	    if (++i>=argc) usage ();
+	    y = strtoul (argv[i], NULL, 0);
 	    continue;
 	}
 	if (!strcmp ("--screen", argv[i])) {
@@ -170,7 +183,7 @@ main (int argc, char **argv)
 	    query = 1;
 	    continue;
 	}
-	if (!strcmp ("-o", argv[i]) || !strcmp ("--orientation", argv[i])) {
+	if (!strcmp ("-r", argv[i]) || !strcmp ("--rotation", argv[i])) {
 	    char *endptr;
 	    if (++i>=argc) usage ();
 	    dirind = strtol(argv[i], &endptr, 0);
@@ -212,15 +225,24 @@ main (int argc, char **argv)
 
     root = RootWindow (dpy, screen);
 
+    if (XRRGetScreenSizeRange (dpy, root, &minWidth, &minHeight,
+			       &maxWidth, &maxHeight))
+    {
+	printf ("min screen size: %d x %d\n", minWidth, minHeight);
+	printf ("max screen size: %d x %d\n", maxWidth, maxHeight);
+    }
     sr = XRRGetScreenResources (dpy, root);
 
     printf ("timestamp: %ld\n", sr->timestamp);
     printf ("configTimestamp: %ld\n", sr->configTimestamp);
     for (i = 0; i < sr->ncrtc; i++) {
+/*	XRRCrtcInto	*xci; */
 	printf ("\tcrtc: 0x%x\n", sr->crtcs[i]);
+/*	xci = XRRGetCrtcInfo (dpy, sr, sr->crtcs[i]); */
     }
     for (i = 0; i < sr->noutput; i++) {
 	XRROutputInfo	*xoi;
+	int		j;
 	
 	printf ("\toutput: 0x%x\n", sr->outputs[i]);
 	xoi = XRRGetOutputInfo (dpy, sr, sr->outputs[i]);
@@ -229,6 +251,14 @@ main (int argc, char **argv)
 	printf ("\t\tcrtc: 0x%x\n", xoi->crtc);
 	printf ("\t\tconnection: %s\n", connection[xoi->connection]);
 	printf ("\t\tsubpixel_order: %s\n", order[xoi->subpixel_order]);
+	printf ("\t\tmodes:");
+	for (j = 0; j < xoi->nmode; j++)
+	    printf(" 0x%x", xoi->modes[j]);
+	printf ("\n");
+	printf ("\t\tclones:");
+	for (j = 0; j < xoi->nclone; j++)
+	    printf(" 0x%x", xoi->clones[j]);
+	printf ("\n");
 	XRRFreeOutputInfo (xoi);
     }
     for (i = 0; i < sr->nmode; i++) {
@@ -253,6 +283,33 @@ main (int argc, char **argv)
 	exit (1);
     }
 
+    if (have_size)
+    {
+	XRRSetScreenSize (dpy, root, width, height,
+			  DisplayWidthMM(dpy, screen),
+			  DisplayHeightMM(dpy, screen));
+    }
+    if (setit)
+    {
+	if (!crtc)
+	    crtc = sr->crtcs[0];
+
+	if (!output)
+	    output = sr->outputs[0];
+
+	if (mode)
+	{
+	    Status status = 
+	    XRRSetCrtcConfig (dpy, sr, crtc, CurrentTime, x, y,
+			      mode, rotation, &output, 1);
+	    printf ("status: %d\n", status);
+	}
+    }
+
     XRRFreeScreenResources (sr);
+
+    XSync (dpy, False);
+
+    
     return(ret);
 }

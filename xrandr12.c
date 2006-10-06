@@ -236,9 +236,22 @@ main (int argc, char **argv)
     printf ("timestamp: %ld\n", sr->timestamp);
     printf ("configTimestamp: %ld\n", sr->configTimestamp);
     for (i = 0; i < sr->ncrtc; i++) {
-/*	XRRCrtcInto	*xci; */
+	XRRCrtcInfo	*xci;
+	int		j;
+	
 	printf ("\tcrtc: 0x%x\n", sr->crtcs[i]);
-/*	xci = XRRGetCrtcInfo (dpy, sr, sr->crtcs[i]); */
+	xci = XRRGetCrtcInfo (dpy, sr, sr->crtcs[i]);
+	printf ("\t\t%dx%d +%u+%u\n",
+		xci->width, xci->height, xci->x, xci->y);
+	printf ("\t\tmode: 0x%x\n", xci->mode);
+	printf ("\t\toutputs:");
+	for (j = 0; j < xci->noutput; j++)
+	    printf (" 0x%x", xci->outputs[j]);
+	printf ("\n");
+	printf ("\t\tpossible:");
+	for (j = 0; j < xci->npossible; j++)
+	    printf (" 0x%x", xci->possible[j]);
+	printf ("\n");
     }
     for (i = 0; i < sr->noutput; i++) {
 	XRROutputInfo	*xoi;
@@ -253,7 +266,7 @@ main (int argc, char **argv)
 	printf ("\t\tsubpixel_order: %s\n", order[xoi->subpixel_order]);
 	printf ("\t\tmodes:");
 	for (j = 0; j < xoi->nmode; j++)
-	    printf(" 0x%x", xoi->modes[j]);
+	    printf(" 0x%x%s", xoi->modes[j], j < xoi->npreferred ? "*" : "");
 	printf ("\n");
 	printf ("\t\tclones:");
 	for (j = 0; j < xoi->nclone; j++)
@@ -264,14 +277,16 @@ main (int argc, char **argv)
     for (i = 0; i < sr->nmode; i++) {
 	double	rate;
 	printf ("\tmode: 0x%04x", sr->modes[i].id);
-	printf (" %10.10s", sr->modes[i].name);
-	printf (" %5d x %5d ", sr->modes[i].width, sr->modes[i].height);
+	printf (" %15.15s", sr->modes[i].name);
+	printf (" %5d x %5d", sr->modes[i].width, sr->modes[i].height);
 	if (sr->modes[i].hTotal && sr->modes[i].vTotal)
 	    rate = ((double) sr->modes[i].dotClock / 
 		    ((double) sr->modes[i].hTotal * (double) sr->modes[i].vTotal));
 	else
 	    rate = 0;
-	printf (" %6.1f\n", rate);
+	printf (" %6.1f", rate);
+	printf (" %5d x %5d", sr->modes[i].mmWidth, sr->modes[i].mmHeight);
+	printf ("\n");
     }
     if (sr == NULL) 
     {
@@ -305,9 +320,13 @@ main (int argc, char **argv)
 
 	if (mode != (RRMode) -1)
 	{
-	    Status status = 
-	    XRRSetCrtcConfig (dpy, sr, crtc, CurrentTime, x, y,
-			      mode, rotation, &output, noutput);
+	    XRROutputConfig cfg;
+	    Status status;
+	    
+	    cfg.output = output;
+	    cfg.options = 0;
+	    status = XRRSetCrtcConfig (dpy, sr, crtc, CurrentTime, x, y,
+				       mode, rotation, &cfg, noutput);
 	    printf ("status: %d\n", status);
 	}
     }

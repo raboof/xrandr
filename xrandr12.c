@@ -104,8 +104,9 @@ main (int argc, char **argv)
     int		event_base, error_base;
     int		reflection = 0;
     int		width = 0, height = 0;
+    int		mmwidth = 0, mmheight = 0;
     int		ret = 0;
-    int		have_size = 0;
+    int		have_size = 0, have_mm_size = 0;
     int		major_version, minor_version;
     RRMode	mode = (RRMode) -1;
     RRCrtc	crtc = 0;
@@ -136,6 +137,15 @@ main (int argc, char **argv)
 	    if (++i>=argc) usage ();
 	    if (sscanf (argv[i], "%dx%d", &width, &height) == 2)
 		have_size = 1;
+	    else {
+		usage();
+	    }
+	    continue;
+	}
+	if (!strcmp ("-mm", argv[i]) || !strcmp ("--mm", argv[i])) {
+	    if (++i>=argc) usage ();
+	    if (sscanf (argv[i], "%dx%d", &mmwidth, &mmheight) == 2)
+		have_mm_size = 1;
 	    else {
 		usage();
 	    }
@@ -296,9 +306,12 @@ main (int argc, char **argv)
 
     if (have_size)
     {
-	XRRSetScreenSize (dpy, root, width, height,
-			  DisplayWidthMM(dpy, screen),
-			  DisplayHeightMM(dpy, screen));
+	if (!have_mm_size)
+	{
+	    mmwidth = DisplayWidthMM(dpy, screen);
+	    mmheight = DisplayHeightMM(dpy, screen);
+	}
+	XRRSetScreenSize (dpy, root, width, height, mmwidth, mmheight);
     }
     if (setit)
     {

@@ -274,6 +274,7 @@ main (int argc, char **argv)
 	printf ("\t\tcrtc: 0x%x\n", xoi->crtc);
 	printf ("\t\tconnection: %s\n", connection[xoi->connection]);
 	printf ("\t\tsubpixel_order: %s\n", order[xoi->subpixel_order]);
+	printf ("\t\tsize: %d x %d mm\n", xoi->mm_width, xoi->mm_height);
 	printf ("\t\tmodes:");
 	for (j = 0; j < xoi->nmode; j++)
 	    printf(" 0x%x%s", xoi->modes[j], j < xoi->npreferred ? "*" : "");
@@ -295,7 +296,6 @@ main (int argc, char **argv)
 	else
 	    rate = 0;
 	printf (" %6.1f", rate);
-	printf (" %5d x %5d", sr->modes[i].mmWidth, sr->modes[i].mmHeight);
 	printf ("\n");
     }
     if (sr == NULL) 

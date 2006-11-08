@@ -295,7 +295,7 @@ main (int argc, char **argv)
 		    ((double) sr->modes[i].hTotal * (double) sr->modes[i].vTotal));
 	else
 	    rate = 0;
-	printf (" %6.1f", rate);
+	printf (" %6.1fHz %6.1fMhz", rate, (float)sr->modes[i].dotClock / 1000000);
 	printf ("\n");
     }
     if (sr == NULL) 

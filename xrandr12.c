@@ -265,8 +265,9 @@ main (int argc, char **argv)
     }
     for (i = 0; i < sr->noutput; i++) {
 	XRROutputInfo	*xoi;
-	int		j;
-	
+	Atom		*props;
+	int		j, nprop;
+
 	printf ("\toutput: 0x%x\n", sr->outputs[i]);
 	xoi = XRRGetOutputInfo (dpy, sr, sr->outputs[i]);
 	printf ("\t\tname: %s\n", xoi->name);
@@ -283,6 +284,24 @@ main (int argc, char **argv)
 	for (j = 0; j < xoi->nclone; j++)
 	    printf(" 0x%x", xoi->clones[j]);
 	printf ("\n");
+
+	props = XRRListOutputProperties (dpy, sr->outputs[i], &nprop);
+	printf ("\t\tproperties:\n");
+	for (j = 0; j < nprop; j++) {
+	    char *prop;
+	    int actual_format;
+	    unsigned long nitems, bytes_after;
+	    Atom actual_type;
+
+	    XRRGetOutputProperty (dpy, sr->outputs[i], props[j],
+				  0, 100, False, AnyPropertyType,
+				  &actual_type, &actual_format,
+				  &nitems, &bytes_after, &prop);
+
+	    printf ("\t\t%s: %s%s\n", XGetAtomName (dpy, props[j]),
+		    prop, bytes_after ? "..." : "");
+	}
+
 	XRRFreeOutputInfo (xoi);
     }
     for (i = 0; i < sr->nmode; i++) {
@@ -295,7 +314,9 @@ main (int argc, char **argv)
 		    ((double) sr->modes[i].hTotal * (double) sr->modes[i].vTotal));
 	else
 	    rate = 0;
-	printf (" %6.1fHz %6.1fMhz", rate, (float)sr->modes[i].dotClock / 1000000);
+	printf (" %6.1fHz %6.1fMhz (with blanking: %d x %d)", rate,
+		(float)sr->modes[i].dotClock / 1000000,
+		sr->modes[i].hTotal, sr->modes[i].vTotal);
 	printf ("\n");
     }
     if (sr == NULL) 

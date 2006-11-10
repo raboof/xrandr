@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <X11/Xlib.h>
 #include <X11/Xlibint.h>
+#include <X11/Xatom.h>
 #include <X11/Xproto.h>
 #include <X11/extensions/Xrandr.h>
 #include <X11/extensions/Xrender.h>	/* we share subpixel information */
@@ -298,8 +299,23 @@ main (int argc, char **argv)
 				  &actual_type, &actual_format,
 				  &nitems, &bytes_after, &prop);
 
-	    printf ("\t\t%s: %s%s\n", XGetAtomName (dpy, props[j]),
-		    prop, bytes_after ? "..." : "");
+	    if (actual_type == XA_INTEGER && actual_format == 8) {
+		int k;
+
+		printf("\t\t\t%s:\n", XGetAtomName (dpy, props[j]));
+		for (k = 0; k < nitems; k++) {
+		    if (k % 16 == 0)
+			printf ("\t\t\t");
+		    printf("%02x", (unsigned char)prop[k]);
+		    if (k % 16 == 15)
+			printf("\n");
+		}
+	    } else if (actual_format == 8) {
+		printf ("\t\t\t%s: %s%s\n", XGetAtomName (dpy, props[j]),
+			prop, bytes_after ? "..." : "");
+	    } else {
+		printf ("\t\t\t%s: ????\n", XGetAtomName (dpy, props[j]));
+	    }
 	}
 
 	XRRFreeOutputInfo (xoi);

@@ -276,7 +276,7 @@ main (int argc, char **argv)
 	printf ("\t\tcrtc: 0x%x\n", xoi->crtc);
 	printf ("\t\tconnection: %s\n", connection[xoi->connection]);
 	printf ("\t\tsubpixel_order: %s\n", order[xoi->subpixel_order]);
-	printf ("\t\tsize: %d x %d mm\n", xoi->mm_width, xoi->mm_height);
+	printf ("\t\tphysical_size: %5d x %5d\n", xoi->mm_width,xoi->mm_height);
 	printf ("\t\tmodes:");
 	for (j = 0; j < xoi->nmode; j++)
 	    printf(" 0x%x%s", xoi->modes[j], j < xoi->npreferred ? "*" : "");
@@ -370,13 +370,10 @@ main (int argc, char **argv)
 
 	if (mode != (RRMode) -1)
 	{
-	    XRROutputConfig cfg;
 	    Status status;
 	    
-	    cfg.output = output;
-	    cfg.options = 0;
 	    status = XRRSetCrtcConfig (dpy, sr, crtc, CurrentTime, x, y,
-				       mode, rotation, &cfg, noutput);
+				       mode, rotation, &output, noutput);
 	    printf ("status: %d\n", status);
 	}
     }

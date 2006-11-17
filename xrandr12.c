@@ -289,7 +289,7 @@ main (int argc, char **argv)
 	props = XRRListOutputProperties (dpy, sr->outputs[i], &nprop);
 	printf ("\t\tproperties:\n");
 	for (j = 0; j < nprop; j++) {
-	    char *prop;
+	    unsigned char *prop;
 	    int actual_format;
 	    unsigned long nitems, bytes_after;
 	    Atom actual_type;

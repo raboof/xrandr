@@ -295,7 +295,7 @@ main (int argc, char **argv)
 	    Atom actual_type;
 
 	    XRRGetOutputProperty (dpy, sr->outputs[i], props[j],
-				  0, 100, False, AnyPropertyType,
+				  0, 100, False, False, AnyPropertyType,
 				  &actual_type, &actual_format,
 				  &nitems, &bytes_after, &prop);
 

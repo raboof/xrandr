@@ -62,6 +62,9 @@ The
 .I -help
 option prints out a usage summary.
 The
+.I -v
+option reports the version of the RandR extension.
+The
 .I --verbose
 option tells you what xrandr is doing, selects for events, and tells you
 when events are received to enable debugging.

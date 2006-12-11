@@ -19,17 +19,13 @@
 #  TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 #  PERFORMANCE OF THIS SOFTWARE.
 
-bin_PROGRAMS = xrandr xrandr12
+bin_PROGRAMS = xrandr
 
 AM_CFLAGS = $(XRANDR_CFLAGS)
 xrandr_LDADD = $(XRANDR_LIBS)
-xrandr12_LDADD = $(XRANDR_LIBS)
 
 xrandr_SOURCES =	\
         xrandr.c
-
-xrandr12_SOURCES =	\
-	xrandr12.c
 
 appman_PRE = \
         xrandr.man

@@ -72,23 +72,27 @@ usage(void)
     fprintf(stderr, "  -v        or --version\n");
     fprintf(stderr, "  -x        (reflect in x)\n");
     fprintf(stderr, "  -y        (reflect in y)\n");
+    fprintf(stderr, "  --screen <screen>\n");
+    fprintf(stderr, "  --verbose\n");
 #if HAS_RANDR_1_2
-    fprintf(stderr, "  --output <output>\n");
-    fprintf(stderr, "  --crtc <crtc>\n");
-    fprintf(stderr, "  --mode <mode>\n");
-    fprintf(stderr, "  --pos <x>x<y>\n");
-    fprintf(stderr, "  --left-of <output>\n");
-    fprintf(stderr, "  --right-of <output>\n");
-    fprintf(stderr, "  --above <output>\n");
-    fprintf(stderr, "  --below <output>\n");
-    fprintf(stderr, "  --off\n");
     fprintf(stderr, "  --fb <width>x<height>\n");
     fprintf(stderr, "  --dpi <dpi>\n");
+#if 0
     fprintf(stderr, "  --clone\n");
     fprintf(stderr, "  --panorama\n");
 #endif
-    fprintf(stderr, "  --screen <screen>\n");
-    fprintf(stderr, "  --verbose\n");
+    fprintf(stderr, "  --output <output>\n");
+    fprintf(stderr, "      --crtc <crtc>\n");
+    fprintf(stderr, "      --mode <mode>\n");
+    fprintf(stderr, "      --pos <x>x<y>\n");
+#if 0
+    fprintf(stderr, "      --left-of <output>\n");
+    fprintf(stderr, "      --right-of <output>\n");
+    fprintf(stderr, "      --above <output>\n");
+    fprintf(stderr, "      --below <output>\n");
+#endif
+    fprintf(stderr, "      --off\n");
+#endif
 
     exit(1);
     /*NOTREACHED*/

@@ -33,6 +33,14 @@ xrandr \- primitive command line interface to RandR extension
 [-x] [-y]
 [--screen \fIsnum\fP]
 [--verbose]
+.br
+[--fb <width>x<height>]
+[--dpi <dpi>]
+[--output <output>]
+[--crtc <crtc>]
+[--mode <mode>]
+[--pos <x>x<y>]
+[--off]
 .SH DESCRIPTION
 .I Xrandr
 is used to set the screen size, orientation and/or reflection.
@@ -65,6 +73,43 @@ The
 .I --verbose
 option tells you what xrandr is doing, selects for events, and tells you
 when events are received to enable debugging.
+.SH "RANDR 1.2"
+.PP
+Randr version 1.2 adds numerous new capabilities to the extension which 
+are supported by new options to the xrandr program.
+.PP
+The
+.I --fb
+option sets the new pixel size of the screen (e.g. --fb 320x200). If left unspecified, the
+screen is set to just fit the specified outputs.
+The 
+.I --dpi
+option changes the dpi of the screen (e.g. -dpi 96). If left unspecified,
+the dpi is left unchanged by any screen size changes.
+.PP
+The
+.I --output
+option selects an output (either by name or XID in hex) to change with any
+of the following parameters. More than one output may be changed per
+invocation.
+.SH "OUTPUT OPTIONS"
+.PP
+The
+.I --crtc
+option specifies the desired crtc by XID. If left unspecified, an unused
+crtc is selected.
+The
+.I --mode
+option selects the desired output mode, either by name or XID. If left
+unspecified, the mode will be left unchanged.
+The
+.I --pos
+option selects where to position the output within the screen (e.g. --pos
+320x0). If left unspecified, the position will be left unchanged, or set to
+0x0 if the output is currently disabled.
+The
+.I --off
+option disables the specified output completely.
 .SH "SEE ALSO"
 Xrandr(3)
 .SH AUTHORS

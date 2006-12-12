@@ -548,6 +548,16 @@ main (int argc, char **argv)
 		xrandr_output->x = 0;
 		xrandr_output->y = 0;
 		xrandr_output->rotation = RR_Rotate_0;
+		for (c = 0; c < res->ncrtc; c++)
+		{
+		    if (res->crtcs[c] == output_info->crtc)
+			break;
+		}
+		if (c < res->ncrtc)
+		{
+		    crtc_info = crtc_infos[c];
+		    crtc_changing[c] = True;
+		}
 	    }
 	    else
 	    {
@@ -834,6 +844,9 @@ main (int argc, char **argv)
 		    rotation = xrandr_output->rotation;
 		}
 	    }
+	    if (noutput == 0)
+		rotation = RR_Rotate_90;
+	    
 	    if (verbose) {
 		if (mode)
 		{

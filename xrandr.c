@@ -134,6 +134,7 @@ static char *connection[3] = {
 
 #define CRTC_OFF    2
 #define CRTC_UNSET  3
+#define CRTC_INDEX  0x40000000
 
 #define MODE_NAME   1
 #define MODE_OFF    2
@@ -333,8 +334,8 @@ main (int argc, char **argv)
 	    if (++i >= argc) usage();
 	    if (!xrandr_output) usage();
 	    xrandr_output->crtc = argv[i];
-	    if (sscanf (xrandr_output->crtc, "%d", &xrandr_output->randr_crtc))
-		;
+	    if (sscanf (xrandr_output->crtc, "%d", &xrandr_output->randr_crtc) == 1)
+		xrandr_output->randr_crtc |= CRTC_INDEX;
 	    else if (sscanf (xrandr_output->crtc, "0x%x", &xrandr_output->randr_crtc) == 1)
 		;
 	    else
@@ -475,6 +476,7 @@ main (int argc, char **argv)
 	XRRCrtcInfo	    **crtc_infos;
 	XRROutputInfo	    *output_info;
 	XRRCrtcInfo	    *crtc_info;
+	XRRCrtcInfo	    *crtc_cur;
 	XRRModeInfo	    *mode_info;
 	RROutput	    *outputs;
 	int		    noutput;
@@ -564,7 +566,12 @@ main (int argc, char **argv)
 		/* map argument to crtc structure (if any) */
 		for (c = 0; c < res->ncrtc; c++)
 		{
-		    if (xrandr_output->crtc == NULL)
+		    if (xrandr_output->randr_crtc & CRTC_INDEX)
+		    {
+			if (c == (xrandr_output->randr_crtc & ~CRTC_INDEX))
+			    break;
+		    }
+		    if (xrandr_output->randr_crtc == CRTC_UNSET)
 		    {
 			if (res->crtcs[c] == output_info->crtc)
 			    break;
@@ -589,13 +596,21 @@ main (int argc, char **argv)
 		    xrandr_output->randr_crtc = None;
 		}
 		xrandr_output->crtc_info = crtc_info;		
+		/* find current crtc (if any) */
+		for (c = 0; c < res->ncrtc; c++)
+		    if (res->crtcs[c] == output_info->crtc)
+			break;
+		if (c < res->ncrtc)
+		    crtc_cur = crtc_infos[c];
+		else
+		    crtc_cur = NULL;
 
 		/* map argument to mode structure (if any) */
 		for (m = 0; m < res->nmode; m++)
 		{
-		    if (xrandr_output->mode == NULL)
+		    if (xrandr_output->randr_mode == MODE_UNSET)
 		    {
-			if (crtc_info && crtc_info->mode == res->modes[m].id)
+			if (crtc_cur && crtc_cur->mode == res->modes[m].id)
 			    break;
 		    }
 		    else if (xrandr_output->randr_mode == MODE_NAME)
@@ -617,7 +632,11 @@ main (int argc, char **argv)
 		if (m < res->nmode)
 		    mode_info = &res->modes[m];
 		else
-		    mode_info = NULL;
+		{
+		    fprintf (stderr, "\"%s\": no mode specified or in use\n",
+			     output_info->name);
+		    exit (1);
+		}
 		xrandr_output->mode_info = mode_info;
 		xrandr_output->randr_mode = mode_info->id;
 

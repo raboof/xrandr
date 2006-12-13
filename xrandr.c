@@ -84,7 +84,9 @@ usage(void)
     fprintf(stderr, "  --output <output>\n");
     fprintf(stderr, "      --crtc <crtc>\n");
     fprintf(stderr, "      --mode <mode>\n");
+    fprintf(stderr, "      --preferred\n");
     fprintf(stderr, "      --pos <x>x<y>\n");
+    fprintf(stderr, "      --auto\n");
 #if 0
     fprintf(stderr, "      --left-of <output>\n");
     fprintf(stderr, "      --right-of <output>\n");
@@ -123,6 +125,7 @@ typedef struct _xrandr_output {
     int			    x, y;
     Rotation		    rotation;
     int			    setit;
+    int			    automatic;
 } xrandr_output_t;
 
 static char *connection[3] = {
@@ -138,6 +141,7 @@ static char *connection[3] = {
 #define MODE_NAME   1
 #define MODE_OFF    2
 #define MODE_UNSET  3
+#define MODE_PREF   4
 
 #define POS_UNSET   -1
 
@@ -321,6 +325,7 @@ main (int argc, char **argv)
 	    xrandr_output->x = POS_UNSET;
 	    xrandr_output->y = POS_UNSET;
 	    xrandr_output->rotation = 0;
+	    xrandr_output->automatic = 0;
 	    xrandr_output->setit = 1;
 
 	    *xrandr_tail = xrandr_output;
@@ -347,6 +352,12 @@ main (int argc, char **argv)
 	    xrandr_output->mode = argv[i];
 	    if (sscanf (xrandr_output->mode, "0x%x", &xrandr_output->randr_mode) != 1)
 		xrandr_output->randr_mode = MODE_NAME;
+	    continue;
+	}
+	if (!strcmp ("--preferred", argv[i])) {
+	    if (!xrandr_output) usage();
+	    xrandr_output->mode = argv[i];
+	    xrandr_output->randr_mode = MODE_PREF;
 	    continue;
 	}
 	if (!strcmp ("--pos", argv[i])) {
@@ -429,6 +440,8 @@ main (int argc, char **argv)
 	    continue;
 	}
 	if (!strcmp ("--auto", argv[i])) {
+	    if (xrandr_output)
+		xrandr_output->automatic = 1;
 	    automatic = 1;
 	    setit_1_2 = 1;
 	    continue;
@@ -484,6 +497,7 @@ main (int argc, char **argv)
 	int		    om, sm;
 	int		    w = 0, h = 0;
 	int		    minWidth, maxWidth, minHeight, maxHeight;
+	int		    best, bestDist;
 
 	if (!has_1_2)
 	{
@@ -538,6 +552,21 @@ main (int argc, char **argv)
 	    xrandr_output->output_info = output_info;
 	    xrandr_output->randr_output = res->outputs[o];
 	    
+	    /* with --auto, select enable/disable based on connected */
+	    if (xrandr_output->automatic)
+	    {
+		switch (output_info->connection) {
+		case RR_Connected:
+		case RR_UnknownConnection:
+		    if (xrandr_output->randr_mode == MODE_UNSET)
+			xrandr_output->randr_mode = MODE_PREF;
+		    break;
+		case RR_Disconnected:
+		    xrandr_output->randr_mode = MODE_OFF;
+		    break;
+		}
+	    }
+	    
 	    /*
 	     * If using --off, set the desired mode and crtc to None
 	     */
@@ -564,7 +593,7 @@ main (int argc, char **argv)
 		/* map argument to crtc structure (if any) */
 		for (c = 0; c < res->ncrtc; c++)
 		{
-		    if (xrandr_output->crtc == NULL)
+		    if (xrandr_output->randr_crtc == CRTC_UNSET)
 		    {
 			if (res->crtcs[c] == output_info->crtc)
 			    break;
@@ -591,9 +620,21 @@ main (int argc, char **argv)
 		xrandr_output->crtc_info = crtc_info;		
 
 		/* map argument to mode structure (if any) */
-		for (m = 0; m < res->nmode; m++)
+		best = -1;
+		bestDist = 0x7fffffff;
+		for (om = 0; om < output_info->nmode; om++)
 		{
-		    if (xrandr_output->mode == NULL)
+		    for (m = 0; m < res->nmode; m++)
+			if (res->modes[m].id == output_info->modes[om])
+			    break;
+		    if (m == res->nmode)
+		    {
+			fprintf (stderr, "\"%s\": output mode 0x%x not found\n",
+				 output_info->name, output_info->modes[om]);
+			exit (1);
+		    }
+		    mode_info = &res->modes[m];
+		    if (xrandr_output->randr_mode == MODE_UNSET)
 		    {
 			if (crtc_info && crtc_info->mode == res->modes[m].id)
 			    break;
@@ -603,12 +644,39 @@ main (int argc, char **argv)
 			if (!strcmp (xrandr_output->mode, res->modes[m].name))
 			    break;
 		    }
-		    else
+		    else if (xrandr_output->randr_mode == MODE_PREF)
 		    {
-			if (xrandr_output->randr_mode == res->modes[m].id)
-			    break;
+			if (output_info->npreferred)
+			{
+			    if (om < output_info->npreferred)
+				break;
+			}
+			else if (output_info->mm_height)
+			{
+			    int	dpm_server = 1000 * DisplayHeight(dpy, screen) / DisplayHeightMM(dpy, screen);
+			    int	dpm_mode = 1000 * mode_info->height / output_info->mm_height;
+			    int dist = dpm_server - dpm_mode;
+
+			    if (dist < 0) dist = -dist;
+			    if (dist < bestDist) {
+				bestDist = dist;
+				best = m;
+			    }
+			}
+			else
+			{
+			    int dist = DisplayHeight(dpy, screen) - mode_info->height;
+
+			    if (dist < 0) dist = -dist;
+			    if (dist < bestDist) {
+				bestDist = dist;
+				best = m;
+			    }
+			}
 		    }
 		}
+		if (best != -1)
+		    m = best;
 		if (m == res->nmode && xrandr_output->mode)
 		{
 		    fprintf (stderr, "\"%s\": mode unknown\n", xrandr_output->mode);
@@ -629,7 +697,7 @@ main (int argc, char **argv)
 			xrandr_output->rotation = RR_Rotate_0;
 		}
 		    
-		if (xrandr_output->x == -1 || xrandr_output->y == -1)
+		if (xrandr_output->x == POS_UNSET || xrandr_output->y == POS_UNSET)
 		{
 		    if (crtc_info)
 		    {
@@ -714,15 +782,16 @@ main (int argc, char **argv)
 			xrandr_output_t	    *cxo;
 
 			for (cxo = xrandr_outputs; cxo; cxo = cxo->next)
-			{
-			    if (crtc_info->outputs[co] != cxo->randr_output)
-				continue;
-			    if (cxo->mode != None)
+			    if (crtc_info->outputs[co] == cxo->randr_output)
 				break;
-			}
-			if (cxo)
+			/* not being reconfigured? */
+			if (!cxo)
+			    break;
+			/* Being reconfigured, but not disabled? */
+			if (cxo->randr_mode != None)
 			    break;
 		    }
+		    /* if we found all outputs on the disable list, we're good */
 		    if (co == crtc_info->noutput)
 			break;
 		}
@@ -774,11 +843,23 @@ main (int argc, char **argv)
 	    if (crtc_info->x + mode_width (mode_info, crtc_info->rotation) > w ||
 		crtc_info->y + mode_height (mode_info, crtc_info->rotation) > h)
 	    {
-		if (verbose)
-		    printf ("Temporarily disable crtc 0x%x\n", res->crtcs[c]); 
-
-		XRRSetCrtcConfig (dpy, res, res->crtcs[c], CurrentTime,
-				  0, 0, None, RR_Rotate_0, NULL, 0);
+		Status	s;
+		s = XRRSetCrtcConfig (dpy, res, res->crtcs[c], CurrentTime,
+				      0, 0, None, RR_Rotate_0, NULL, 0);
+		/* XXX we should bail and reset to the old state when this fails */
+		switch (s) {
+		case RRSetConfigSuccess:
+		    break;
+		case RRSetConfigFailed:
+		    fprintf (stderr, "Disable crtc %d failed\n", c);
+		    break;
+		case RRSetConfigInvalidConfigTime:
+		    fprintf (stderr, "Disable crtc %d invalid config time\n", c);
+		    break;
+		case RRSetConfigInvalidTime:
+		    fprintf (stderr, "Disable crtc %d invalid time\n", c);
+		    break;
+		}
 	    }
 	}
 
@@ -811,6 +892,7 @@ main (int argc, char **argv)
 	    int	    x = 0;
 	    int	    y = 0;
 	    Rotation	rotation;
+	    Status	s;
 	    
 	    crtc_info = crtc_infos[c];
 	    if (!crtc_changing[c])
@@ -875,8 +957,22 @@ main (int argc, char **argv)
 		else
 		    printf ("Disabling crtc %d\n", c);
 	    }
-	    XRRSetCrtcConfig (dpy, res, res->crtcs[c], CurrentTime,
-			      x, y, mode, rotation, outputs, noutput);
+	    s = XRRSetCrtcConfig (dpy, res, res->crtcs[c], CurrentTime,
+				  x, y, mode, rotation, outputs, noutput);
+	    /* XXX we should bail and reset to the old state when this fails */
+	    switch (s) {
+	    case RRSetConfigSuccess:
+		break;
+	    case RRSetConfigFailed:
+		fprintf (stderr, "Configure crtc %d failed\n", c);
+		break;
+	    case RRSetConfigInvalidConfigTime:
+		fprintf (stderr, "Configure crtc %d invalid config time\n", c);
+		break;
+	    case RRSetConfigInvalidTime:
+		fprintf (stderr, "Configure crtc %d invalid time\n", c);
+		break;
+	    }
 	}
 	XSync (dpy, False);
 	exit (0);

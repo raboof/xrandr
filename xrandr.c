@@ -424,7 +424,7 @@ main (int argc, char **argv)
 	}
 	if (!strcmp ("--dpi", argv[i])) {
 	    if (++i>=argc) usage ();
-	    if (sscanf (argv[i], "%g", &dpi) != 1)
+	    if (sscanf (argv[i], "%lf", &dpi) != 1)
 		usage ();
 	    setit_1_2 = 1;
 	    continue;

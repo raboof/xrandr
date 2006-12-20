@@ -497,7 +497,7 @@ main (int argc, char **argv)
 	Bool		    *crtc_changing;
 	int		    c, o, m;
 	int		    om, sm;
-	int		    w = 0, h = 0;
+	int		    w = fb_width, h = fb_height;
 	int		    minWidth, maxWidth, minHeight, maxHeight;
 	int		    best, bestDist;
 

@@ -689,6 +689,11 @@ main (int argc, char **argv)
 			    }
 			}
 		    }
+		    else
+		    {
+			if (xrandr_output->randr_mode == res->modes[m].id)
+			    break;
+		    }
 		}
 		if (best != -1)
 		    m = best;

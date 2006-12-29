@@ -1003,7 +1003,7 @@ main (int argc, char **argv)
 	XSync (dpy, False);
 	exit (0);
     }
-    if (query_1_2)
+    if (query_1_2 || (query && has_1_2))
     {
 	XRRScreenResources	*sr;
 	int		minWidth, minHeight;
@@ -1016,9 +1016,10 @@ main (int argc, char **argv)
 	if (XRRGetScreenSizeRange (dpy, root, &minWidth, &minHeight,
 				   &maxWidth, &maxHeight))
 	{
-	    printf ("min screen size: %d x %d\n", minWidth, minHeight);
-	    printf ("cur screen size: %d x %d\n", DisplayWidth (dpy, screen), DisplayHeight(dpy, screen));
-	    printf ("max screen size: %d x %d\n", maxWidth, maxHeight);
+	    printf ("screen size: min (%d x %d) cur (%d x %d) max (%d x %d)\n",
+		    minWidth, minHeight,
+		    DisplayWidth (dpy, screen), DisplayHeight(dpy, screen),
+		    maxWidth, maxHeight);
 	}
 	sr = XRRGetScreenResources (dpy, root);
 
@@ -1108,11 +1109,21 @@ main (int argc, char **argv)
 			((double) sr->modes[i].hTotal * (double) sr->modes[i].vTotal));
 	    else
 		rate = 0;
-	    printf (" %6.1fHz %6.1fMhz (with blanking: %d x %d)", rate,
-		    (float)sr->modes[i].dotClock / 1000000,
-		    sr->modes[i].hTotal, sr->modes[i].vTotal);
+	    printf (" %6.1fHz %6.1fMhz", rate,
+		    (float)sr->modes[i].dotClock / 1000000);
 	    printf ("\n");
+	    if (verbose)
+	    {
+		printf ("\t    h: start %6d end %6d total %6d skew %6d clock %6.1fKHz\n",
+			sr->modes[i].hSyncStart, sr->modes[i].hSyncEnd, sr->modes[i].hTotal,
+			sr->modes[i].hSkew,
+			(float) sr->modes[i].dotClock / ((float) sr->modes[i].hTotal * 1000));
+		printf ("\t    v: start %6d end %6d total %6d             clock %6.1fHz\n",
+			sr->modes[i].vSyncStart, sr->modes[i].vSyncEnd,	sr->modes[i].vTotal,
+			rate);
+	    }
 	}
+	exit (0);
     }
 #endif
     

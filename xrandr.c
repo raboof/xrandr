@@ -35,6 +35,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <math.h>
 
 #if RANDR_MAJOR > 1 || (RANDR_MAJOR == 1 && RANDR_MINOR >= 2)
 #define HAS_RANDR_1_2 1
@@ -74,7 +75,7 @@ usage(void)
     fprintf(stderr, "            or --orientation <normal,inverted,left,right,0,1,2,3>\n");
     fprintf(stderr, "  -q        or --query\n");
     fprintf(stderr, "  -s <size>/<width>x<height> or --size <size>/<width>x<height>\n");
-    fprintf(stderr, "  -r <rate> or --rate <rate>\n");
+    fprintf(stderr, "  -r <rate> or --rate <rate> or --refresh <rate>\n");
     fprintf(stderr, "  -v        or --version\n");
     fprintf(stderr, "  -x        (reflect in x)\n");
     fprintf(stderr, "  -y        (reflect in y)\n");
@@ -92,6 +93,7 @@ usage(void)
     fprintf(stderr, "  --output <output>\n");
     fprintf(stderr, "      --crtc <crtc>\n");
     fprintf(stderr, "      --mode <mode>\n");
+    fprintf(stderr, "      --rate <rate> or --refresh <rate>\n");
     fprintf(stderr, "      --preferred\n");
     fprintf(stderr, "      --pos <x>x<y>\n");
     fprintf(stderr, "      --auto\n");
@@ -163,6 +165,7 @@ typedef enum _changes {
     changes_position = (1 << 3),
     changes_rotation = (1 << 4),
     changes_automatic = (1 << 5),
+    changes_refresh = (1 << 6),
 } changes_t;
 
 typedef enum _name_kind {
@@ -208,6 +211,7 @@ struct _output {
     crtc_t	    *crtc_info;
     
     name_t	    mode;
+    float	    refresh;
     XRRModeInfo	    *mode_info;
     
     relation_t	    relation;
@@ -244,7 +248,7 @@ static int	num_crtcs;
 static XRRScreenResources  *res;
 static int	fb_width = 0, fb_height = 0;
 static int	fb_width_mm = 0, fb_height_mm = 0;
-static double	dpi = 0;
+static float	dpi = 0;
 static char	*dpi_output = NULL;
 static Bool	dryrun = False;
 static int	minWidth, maxWidth, minHeight, maxHeight;
@@ -277,6 +281,33 @@ mode_width (XRRModeInfo *mode_info, Rotation rotation)
     default:
 	return 0;
     }
+}
+
+/* v refresh frequency in Hz */
+static float
+mode_refresh (XRRModeInfo *mode_info)
+{
+    float rate;
+    
+    if (mode_info->hTotal && mode_info->vTotal)
+	rate = ((float) mode_info->dotClock / 
+		((float) mode_info->hTotal * (float) mode_info->vTotal));
+    else
+    	rate = 0;
+    return rate;
+}
+
+/* h sync frequency in Hz */
+static float
+mode_hsync (XRRModeInfo *mode_info)
+{
+    float rate;
+    
+    if (mode_info->hTotal)
+	rate = (float) mode_info->dotClock / (float) mode_info->hTotal;
+    else
+    	rate = 0;
+    return rate;
 }
 
 static void
@@ -427,21 +458,37 @@ find_crtc_by_xid (RRCrtc crtc)
 }
 
 static XRRModeInfo *
-find_mode (name_t *name)
+find_mode (name_t *name, float refresh)
 {
     int		m;
-    XRRModeInfo	*mode = NULL;
+    XRRModeInfo	*best = NULL;
+    float	bestDist = 0;
 
     for (m = 0; m < res->nmode; m++)
     {
-	mode = &res->modes[m];
+	XRRModeInfo *mode = &res->modes[m];
 	if ((name->kind & name_xid) && name->xid == mode->id)
+	{
+	    best = mode;
 	    break;
+	}
 	if ((name->kind & name_string) && !strcmp (name->string, mode->name))
+	{
+	    float   dist;
+	    
+	    if (refresh)
+		dist = fabs (mode_refresh (mode) - refresh);
+	    else
+		dist = 0;
+	    if (!best || dist < bestDist)
+	    {
+		bestDist = dist;
+		best = mode;
+	    }
 	    break;
-	mode = NULL;
+	}
     }
-    return mode;
+    return best;
 }
 
 static XRRModeInfo *
@@ -451,7 +498,7 @@ find_mode_by_xid (RRMode mode)
 
     init_name (&mode_name);
     set_name_xid (&mode_name, mode);
-    return find_mode (&mode_name);
+    return find_mode (&mode_name, 0);
 }
 
 static
@@ -460,19 +507,36 @@ find_mode_for_output (output_t *output, name_t *name)
 {
     XRROutputInfo   *output_info = output->output_info;
     int		    m;
-    XRRModeInfo	    *mode = NULL;
+    XRRModeInfo	    *best = NULL;
+    float	    bestDist = 0;
 
     for (m = 0; m < output_info->nmode; m++)
     {
+	XRRModeInfo	    *mode;
+	
 	mode = find_mode_by_xid (output_info->modes[m]);
 	if (!mode) continue;
 	if ((name->kind & name_xid) && name->xid == mode->id)
+	{
+	    best = mode;
 	    break;
+	}
 	if ((name->kind & name_string) && !strcmp (name->string, mode->name))
-	    break;
-	mode = NULL;
+	{
+	    float   dist;
+	    
+	    if (output->refresh)
+		dist = fabs (mode_refresh (mode) - output->refresh);
+	    else
+		dist = 0;
+	    if (!best || dist < bestDist)
+	    {
+		bestDist = dist;
+		best = mode;
+	    }
+	}
     }
-    return mode;
+    return best;
 }
 
 XRRModeInfo *
@@ -505,9 +569,6 @@ preferred_mode (output_t *output)
 	    bestDist = dist;
 	}
     }
-    if (best)
-    	set_name_xid (&output->mode, best->id);
-	
     return best;
 }
 
@@ -765,8 +826,9 @@ crtc_apply (crtc_t *crtc)
 	rr_outputs[o] = crtc->outputs[o]->output.xid;
     mode = crtc->mode_info->id;
     if (verbose) {
-	printf ("crtc %d: %s +%d+%d", crtc->crtc.index,
-		crtc->mode_info->name, crtc->x, crtc->y);
+	printf ("crtc %d: %12s %6.1f +%d+%d", crtc->crtc.index,
+		crtc->mode_info->name, mode_refresh (crtc->mode_info),
+		crtc->x, crtc->y);
 	for (o = 0; o < crtc->noutput; o++)
 	    printf (" \"%s\"", crtc->outputs[o]->output.string);
 	printf ("\n");
@@ -1239,8 +1301,8 @@ main (int argc, char **argv)
     char          *display_name = NULL;
     int 		i, j;
     SizeID	current_size;
-    short		current_rate;
-    int		rate = -1;
+    short	current_rate;
+    double    	rate = -1;
     int		size = -1;
     int		dirind = 0;
     Bool	setit = False;
@@ -1294,11 +1356,22 @@ main (int argc, char **argv)
 	    continue;
 	}
 
-	if (!strcmp ("-r", argv[i]) || !strcmp ("--rate", argv[i])) {
+	if (!strcmp ("-r", argv[i]) ||
+	    !strcmp ("--rate", argv[i]) ||
+	    !strcmp ("--refresh", argv[i]))
+	{
 	    if (++i>=argc) usage ();
-	    rate = atoi (argv[i]);
-	    if (rate < 0) usage();
+	    if (sscanf (argv[i], "%lf", &rate) != 1)
+		usage ();
 	    setit = True;
+#if HAS_RANDR_1_2
+	    if (output)
+	    {
+		output->refresh = rate;
+		output->changes |= changes_refresh;
+		setit_1_2 = True;
+	    }
+#endif
 	    continue;
 	}
 
@@ -1719,27 +1792,21 @@ main (int argc, char **argv)
 	    XRRFreeOutputInfo (xoi);
 	}
 	for (i = 0; i < sr->nmode; i++) {
-	    double	rate;
 	    printf ("\tmode: 0x%04x", sr->modes[i].id);
 	    printf (" %15.15s", sr->modes[i].name);
 	    printf (" %5d x %5d", sr->modes[i].width, sr->modes[i].height);
-	    if (sr->modes[i].hTotal && sr->modes[i].vTotal)
-		rate = ((double) sr->modes[i].dotClock / 
-			((double) sr->modes[i].hTotal * (double) sr->modes[i].vTotal));
-	    else
-		rate = 0;
-	    printf (" %6.1fHz %6.1fMhz", rate,
-		    (float)sr->modes[i].dotClock / 1000000);
+	    printf (" %6.1fHz %6.1fMhz", mode_refresh (&sr->modes[i]),
+		    (float)sr->modes[i].dotClock / 1000000.0);
 	    printf ("\n");
 	    if (verbose)
 	    {
 		printf ("\t    h: start %6d end %6d total %6d skew %6d clock %6.1fKHz\n",
 			sr->modes[i].hSyncStart, sr->modes[i].hSyncEnd, sr->modes[i].hTotal,
 			sr->modes[i].hSkew,
-			(float) sr->modes[i].dotClock / ((float) sr->modes[i].hTotal * 1000));
+			mode_hsync (&sr->modes[i]) / 1000);
 		printf ("\t    v: start %6d end %6d total %6d             clock %6.1fHz\n",
 			sr->modes[i].vSyncStart, sr->modes[i].vSyncEnd,	sr->modes[i].vTotal,
-			rate);
+			mode_refresh (&sr->modes[i]));
 	    }
 	}
 	exit (0);

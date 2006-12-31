@@ -44,7 +44,8 @@ static char	*program_name;
 static Display	*dpy;
 static Window	root;
 static int	screen = -1;
-static int	verbose = 0;
+static Bool	verbose = False;
+static Bool	automatic = False;
 
 static char *direction[5] = {
     "normal", 
@@ -1039,8 +1040,14 @@ set_positions (void)
 	    relation = find_output (&relation_name);
 	    if (!relation) fatal ("cannot find output \"%s\"\n", output->relative_to);
 	    
-	    if (relation->mode_info == NULL) fatal ("relative output %s is not active\n",
-						    relation->output.string);
+	    if (relation->mode_info == NULL) 
+	    {
+		output->x = 0;
+		output->y = 0;
+		output->changes |= changes_position;
+		any_set = True;
+		continue;
+	    }
 	    /*
 	     * Make sure the dependent object has been set in place
 	     */
@@ -1176,26 +1183,25 @@ main (int argc, char **argv)
     int		rate = -1;
     int		size = -1;
     int		dirind = 0;
-    int		setit = 0;
-    int		version = 0;
+    Bool	setit = False;
+    Bool    	version = False;
     int		event_base, error_base;
     int		reflection = 0;
     int		width = 0, height = 0;
-    int		have_pixel_size = 0;
+    Bool    	have_pixel_size = False;
     int		ret = 0;
 #if HAS_RANDR_1_2
     output_t	*output = NULL;
     char	*crtc;
     policy_t	policy = clone;
-    int		setit_1_2 = 0;
-    int		has_1_2 = 0;
-    int		query_1_2 = 0;
+    Bool    	setit_1_2 = False;
+    Bool    	has_1_2 = False;
+    Bool    	query_1_2 = False;
     int		major, minor;
-    int		automatic = 0;
 #endif
 
     program_name = argv[0];
-    if (argc == 1) query = 1;
+    if (argc == 1) query = True;
     for (i = 1; i < argc; i++) {
 	if (!strcmp ("-display", argv[i]) || !strcmp ("-d", argv[i])) {
 	    if (++i>=argc) usage ();
@@ -1207,24 +1213,24 @@ main (int argc, char **argv)
 	    continue;
 	}
 	if (!strcmp ("--verbose", argv[i])) {
-	    verbose = 1;
+	    verbose = True;
 	    continue;
 	}
 	if (!strcmp ("--dryrun", argv[i])) {
-	    dryrun = 1;
-	    verbose = 1;
+	    dryrun = True;
+	    verbose = True;
 	    continue;
 	}
 
 	if (!strcmp ("-s", argv[i]) || !strcmp ("--size", argv[i])) {
 	    if (++i>=argc) usage ();
 	    if (sscanf (argv[i], "%dx%d", &width, &height) == 2)
-		have_pixel_size = 1;
+		have_pixel_size = True;
 	    else {
 		size = atoi (argv[i]);
 		if (size < 0) usage();
 	    }
-	    setit = 1;
+	    setit = True;
 	    continue;
 	}
 
@@ -1232,23 +1238,23 @@ main (int argc, char **argv)
 	    if (++i>=argc) usage ();
 	    rate = atoi (argv[i]);
 	    if (rate < 0) usage();
-	    setit = 1;
+	    setit = True;
 	    continue;
 	}
 
 	if (!strcmp ("-v", argv[i]) || !strcmp ("--version", argv[i])) {
-	    version = 1;
+	    version = True;
 	    continue;
 	}
 
 	if (!strcmp ("-x", argv[i])) {
 	    reflection |= RR_Reflect_X;
-	    setit = 1;
+	    setit = True;
 	    continue;
 	}
 	if (!strcmp ("-y", argv[i])) {
 	    reflection |= RR_Reflect_Y;
-	    setit = 1;
+	    setit = True;
 	    continue;
 	}
 	if (!strcmp ("--screen", argv[i])) {
@@ -1258,7 +1264,7 @@ main (int argc, char **argv)
 	    continue;
 	}
 	if (!strcmp ("-q", argv[i]) || !strcmp ("--query", argv[i])) {
-	    query = 1;
+	    query = True;
 	    continue;
 	}
 	if (!strcmp ("-o", argv[i]) || !strcmp ("--orientation", argv[i])) {
@@ -1272,7 +1278,7 @@ main (int argc, char **argv)
 		if ((dirind < 0) || (dirind > 3))  usage();
 	    }
 	    rot = dirind;
-	    setit = 1;
+	    setit = True;
 	    continue;
 	}
 #if HAS_RANDR_1_2
@@ -1282,7 +1288,7 @@ main (int argc, char **argv)
 
 	    set_name (&output->output, argv[i], name_string|name_xid);
 	    
-	    setit_1_2 = 1;
+	    setit_1_2 = True;
 	    continue;
 	}
 	if (!strcmp ("--crtc", argv[i])) {
@@ -1370,7 +1376,7 @@ main (int argc, char **argv)
 	    if (sscanf (argv[i], "%dx%d",
 			&fb_width, &fb_height) != 2)
 		usage ();
-	    setit_1_2 = 1;
+	    setit_1_2 = True;
 	    continue;
 	}
 	if (!strcmp ("--fbmm", argv[i])) {
@@ -1378,24 +1384,24 @@ main (int argc, char **argv)
 	    if (sscanf (argv[i], "%dx%d",
 			&fb_width_mm, &fb_height_mm) != 2)
 		usage ();
-	    setit_1_2 = 1;
+	    setit_1_2 = True;
 	    continue;
 	}
 	if (!strcmp ("--dpi", argv[i])) {
 	    if (++i>=argc) usage ();
 	    if (sscanf (argv[i], "%lf", &dpi) != 1)
 		usage ();
-	    setit_1_2 = 1;
+	    setit_1_2 = True;
 	    continue;
 	}
 	if (!strcmp ("--clone", argv[i])) {
 	    policy = clone;
-	    setit_1_2 = 1;
+	    setit_1_2 = True;
 	    continue;
 	}
 	if (!strcmp ("--extend", argv[i])) {
 	    policy = extend;
-	    setit_1_2 = 1;
+	    setit_1_2 = True;
 	    continue;
 	}
 	if (!strcmp ("--auto", argv[i])) {
@@ -1404,19 +1410,19 @@ main (int argc, char **argv)
 		output->automatic = True;
 		output->changes |= changes_automatic;
 	    }
-	    automatic = 1;
-	    setit_1_2 = 1;
+	    automatic = True;
+	    setit_1_2 = True;
 	    continue;
 	}
 	if (!strcmp ("--q12", argv[i]))
 	{
-	    query_1_2 = 1;
+	    query_1_2 = True;
 	    continue;
 	}
 #endif
 	usage();
     }
-    if (verbose) query = 1;
+    if (verbose) query = True;
 
     dpy = XOpenDisplay (display_name);
 

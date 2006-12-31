@@ -47,6 +47,7 @@ static Window	root;
 static int	screen = -1;
 static Bool	verbose = False;
 static Bool	automatic = False;
+static Bool	properties = False;
 
 static char *direction[5] = {
     "normal", 
@@ -83,6 +84,7 @@ usage(void)
     fprintf(stderr, "  --verbose\n");
     fprintf(stderr, "  --dryrun\n");
 #if HAS_RANDR_1_2
+    fprintf(stderr, "  --prop or --properties\n");
     fprintf(stderr, "  --fb <width>x<height>\n");
     fprintf(stderr, "  --fbmm <width>x<height>\n");
     fprintf(stderr, "  --dpi <dpi>/<output>\n");
@@ -252,6 +254,7 @@ static float	dpi = 0;
 static char	*dpi_output = NULL;
 static Bool	dryrun = False;
 static int	minWidth, maxWidth, minHeight, maxHeight;
+static Bool    	has_1_2 = False;
 
 static int
 mode_height (XRRModeInfo *mode_info, Rotation rotation)
@@ -723,6 +726,19 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 	       reflection_name (output->rotation, False));
 }
     
+static void
+get_screen (void)
+{
+    if (!has_1_2)
+        fatal ("Server RandR version before 1.2\n");
+    
+    XRRGetScreenSizeRange (dpy, root, &minWidth, &minHeight,
+			   &maxWidth, &maxHeight);
+    
+    res = XRRGetScreenResources (dpy, root);
+    if (!res) fatal ("could not get screen resources");
+}
+
 static void
 get_crtcs (void)
 {
@@ -1317,8 +1333,8 @@ main (int argc, char **argv)
     char	*crtc;
     policy_t	policy = clone;
     Bool    	setit_1_2 = False;
-    Bool    	has_1_2 = False;
     Bool    	query_1_2 = False;
+    Bool	query_1 = False;
     int		major, minor;
 #endif
 
@@ -1415,6 +1431,12 @@ main (int argc, char **argv)
 	    continue;
 	}
 #if HAS_RANDR_1_2
+	if (!strcmp ("--prop", argv[i]) || !strcmp ("--properties", argv[i]))
+	{
+	    query_1_2 = True;
+	    properties = True;
+	    continue;
+	}
 	if (!strcmp ("--output", argv[i])) {
 	    if (++i >= argc) usage();
 	    output = add_output ();
@@ -1555,6 +1577,11 @@ main (int argc, char **argv)
 	    query_1_2 = True;
 	    continue;
 	}
+	if (!strcmp ("--q1", argv[i]))
+	{
+	    query_1 = True;
+	    continue;
+	}
 #endif
 	usage();
     }
@@ -1596,17 +1623,7 @@ main (int argc, char **argv)
 	int		    c, o, m;
 	int		    om, sm;
 
-	if (!has_1_2)
-	{
-	    fprintf (stderr, "Server RandR version before 1.2\n");
-	    exit (1);
-	}
-	XRRGetScreenSizeRange (dpy, root, &minWidth, &minHeight,
-			       &maxWidth, &maxHeight);
-	
-	res = XRRGetScreenResources (dpy, root);
-	if (!res) fatal ("could not get screen resources");
-
+	get_screen ();
 	get_crtcs ();
 	get_outputs ();
 	set_positions ();
@@ -1695,118 +1712,130 @@ main (int argc, char **argv)
 	XSync (dpy, False);
 	exit (0);
     }
-    if (query_1_2 || (query && has_1_2))
+    if (query_1_2 || (query && has_1_2 && !query_1))
     {
-	XRRScreenResources	*sr;
-	int		minWidth, minHeight;
-	int		maxWidth, maxHeight;
-	if (!has_1_2)
+	output_t    *output;
+	
+	get_screen ();
+	get_crtcs ();
+	get_outputs ();
+
+        printf ("Screen %d: minimum %d x %d, current %d x %d, maximum %d x %d\n",
+		screen, minWidth, minHeight,
+		DisplayWidth (dpy, screen), DisplayHeight(dpy, screen),
+		maxWidth, maxHeight);
+
+	for (output = outputs; output; output = output->next)
 	{
-	    fprintf (stderr, "Server RandR version before 1.2\n");
-	    exit (1);
-	}
-	if (XRRGetScreenSizeRange (dpy, root, &minWidth, &minHeight,
-				   &maxWidth, &maxHeight))
-	{
-	    printf ("screen size: min (%d x %d) cur (%d x %d) max (%d x %d)\n",
-		    minWidth, minHeight,
-		    DisplayWidth (dpy, screen), DisplayHeight(dpy, screen),
-		    maxWidth, maxHeight);
-	}
-	sr = XRRGetScreenResources (dpy, root);
+	    XRROutputInfo   *output_info = output->output_info;
+	    Atom	    *props;
+	    int		    j, k, nprop;
+	    Bool	    *mode_shown;
 
-	printf ("timestamp: %ld\n", sr->timestamp);
-	printf ("configTimestamp: %ld\n", sr->configTimestamp);
-	for (i = 0; i < sr->ncrtc; i++) {
-	    XRRCrtcInfo	*xci;
-	    int		j;
+	    printf ("%s %s %dmm x %dmm\n",
+		    output_info->name,
+		    connection[output_info->connection],
+		    output_info->mm_width, output_info->mm_height);
 
-	    printf ("\tcrtc: 0x%x\n", sr->crtcs[i]);
-	    xci = XRRGetCrtcInfo (dpy, sr, sr->crtcs[i]);
-	    printf ("\t\t%dx%d +%u+%u\n",
-		    xci->width, xci->height, xci->x, xci->y);
-	    printf ("\t\tmode: 0x%x\n", xci->mode);
-	    printf ("\t\toutputs:");
-	    for (j = 0; j < xci->noutput; j++)
-		printf (" 0x%x", xci->outputs[j]);
-	    printf ("\n");
-	    printf ("\t\tpossible:");
-	    for (j = 0; j < xci->npossible; j++)
-		printf (" 0x%x", xci->possible[j]);
-	    printf ("\n");
-	}
-	for (i = 0; i < sr->noutput; i++) {
-	    XRROutputInfo	*xoi;
-	    Atom		*props;
-	    int		j, nprop;
-
-	    printf ("\toutput: 0x%x\n", sr->outputs[i]);
-	    xoi = XRRGetOutputInfo (dpy, sr, sr->outputs[i]);
-	    printf ("\t\tname: %s\n", xoi->name);
-	    printf ("\t\ttimestamp: %d\n", xoi->timestamp);
-	    printf ("\t\tcrtc: 0x%x\n", xoi->crtc);
-	    printf ("\t\tconnection: %s\n", connection[xoi->connection]);
-	    printf ("\t\tsubpixel_order: %s\n", order[xoi->subpixel_order]);
-	    printf ("\t\tphysical_size: %5d x %5d\n", xoi->mm_width,xoi->mm_height);
-	    printf ("\t\tmodes:");
-	    for (j = 0; j < xoi->nmode; j++)
-		printf(" 0x%x%s", xoi->modes[j], j < xoi->npreferred ? "*" : "");
-	    printf ("\n");
-	    printf ("\t\tclones:");
-	    for (j = 0; j < xoi->nclone; j++)
-		printf(" 0x%x", xoi->clones[j]);
-	    printf ("\n");
-
-	    props = XRRListOutputProperties (dpy, sr->outputs[i], &nprop);
-	    printf ("\t\tproperties:\n");
-	    for (j = 0; j < nprop; j++) {
-		unsigned char *prop;
-		int actual_format;
-		unsigned long nitems, bytes_after;
-		Atom actual_type;
-
-		XRRGetOutputProperty (dpy, sr->outputs[i], props[j],
-				      0, 100, False, False, AnyPropertyType,
-				      &actual_type, &actual_format,
-				      &nitems, &bytes_after, &prop);
-
-		if (actual_type == XA_INTEGER && actual_format == 8) {
-		    int k;
-
-		    printf("\t\t\t%s:\n", XGetAtomName (dpy, props[j]));
-		    for (k = 0; k < nitems; k++) {
-			if (k % 16 == 0)
-			    printf ("\t\t\t");
-			printf("%02x", (unsigned char)prop[k]);
-			if (k % 16 == 15)
-			    printf("\n");
-		    }
-		} else if (actual_format == 8) {
-		    printf ("\t\t\t%s: %s%s\n", XGetAtomName (dpy, props[j]),
-			    prop, bytes_after ? "..." : "");
-		} else {
-		    printf ("\t\t\t%s: ????\n", XGetAtomName (dpy, props[j]));
-		}
-	    }
-
-	    XRRFreeOutputInfo (xoi);
-	}
-	for (i = 0; i < sr->nmode; i++) {
-	    printf ("\tmode: 0x%04x", sr->modes[i].id);
-	    printf (" %15.15s", sr->modes[i].name);
-	    printf (" %5d x %5d", sr->modes[i].width, sr->modes[i].height);
-	    printf (" %6.1fHz %6.1fMhz", mode_refresh (&sr->modes[i]),
-		    (float)sr->modes[i].dotClock / 1000000.0);
-	    printf ("\n");
 	    if (verbose)
 	    {
-		printf ("\t    h: start %6d end %6d total %6d skew %6d clock %6.1fKHz\n",
-			sr->modes[i].hSyncStart, sr->modes[i].hSyncEnd, sr->modes[i].hTotal,
-			sr->modes[i].hSkew,
-			mode_hsync (&sr->modes[i]) / 1000);
-		printf ("\t    v: start %6d end %6d total %6d             clock %6.1fHz\n",
-			sr->modes[i].vSyncStart, sr->modes[i].vSyncEnd,	sr->modes[i].vTotal,
-			mode_refresh (&sr->modes[i]));
+		printf ("\tIdentifier: 0x%x\n", output->output.xid);
+		printf ("\tTimestamp:  %d\n", output_info->timestamp);
+		printf ("\tSubpixel:   %s\n", order[output_info->subpixel_order]);
+		printf ("\tClones:     ");
+		for (j = 0; j < output_info->nclone; j++)
+		{
+		    output_t	*clone = find_output_by_xid (output_info->clones[j]);
+
+		    if (clone) printf (" %s", clone->output.string);
+		}
+		printf ("\n");
+		if (output->crtc_info)
+		    printf ("\tCRTC:       %d\n", output->crtc_info->crtc.index);
+	    }
+	    if (verbose || properties)
+	    {
+		props = XRRListOutputProperties (dpy, output->output.xid, &nprop);
+		for (j = 0; j < nprop; j++) {
+		    unsigned char *prop;
+		    int actual_format;
+		    unsigned long nitems, bytes_after;
+		    Atom actual_type;
+    
+		    XRRGetOutputProperty (dpy, output->output.xid, props[j],
+					  0, 100, False, False, AnyPropertyType,
+					  &actual_type, &actual_format,
+					  &nitems, &bytes_after, &prop);
+    
+		    if (actual_type == XA_INTEGER && actual_format == 8) {
+			int k;
+    
+			printf("\t%s:\n", XGetAtomName (dpy, props[j]));
+			for (k = 0; k < nitems; k++) {
+			    if (k % 16 == 0)
+				printf ("\t\t");
+			    printf("%02x", (unsigned char)prop[k]);
+			    if (k % 16 == 15)
+				printf("\n");
+			}
+		    } else if (actual_format == 8) {
+			printf ("\t\t%s: %s%s\n", XGetAtomName (dpy, props[j]),
+				prop, bytes_after ? "..." : "");
+		    } else {
+			printf ("\t\t%s: ????\n", XGetAtomName (dpy, props[j]));
+		    }
+		}
+	    }
+	    
+	    if (verbose)
+	    {
+		for (j = 0; j < output_info->nmode; j++)
+		{
+		    XRRModeInfo	*mode = find_mode_by_xid (output_info->modes[j]);
+		    
+		    printf ("  %s (0x%x) %6.1fMHz\n",
+			    mode->name, mode->id,
+			    (float)mode->dotClock / 1000000.0);
+		    printf ("        h: width  %4d start %4d end %4d total %4d skew %4d clock %6.1fKHz\n",
+			    mode->width, mode->hSyncStart, mode->hSyncEnd,
+			    mode->hTotal, mode->hSkew, mode_hsync (mode) / 1000);
+		    printf ("        v: height %4d start %4d end %4d total %4d           clock %6.1fHz\n",
+			    mode->height, mode->vSyncStart, mode->vSyncEnd, mode->vTotal,
+			    mode_refresh (mode));
+		}
+	    }
+	    else
+	    {
+		mode_shown = calloc (output_info->nmode, sizeof (Bool));
+		if (!mode_shown) fatal ("out of memory\n");
+		for (j = 0; j < output_info->nmode; j++)
+		{
+		    XRRModeInfo *jmode, *kmode;
+		    
+		    if (mode_shown[j]) continue;
+    
+		    jmode = find_mode_by_xid (output_info->modes[j]);
+		    printf (" ");
+		    printf ("  %-12s", jmode->name);
+		    for (k = j; k < output_info->nmode; k++)
+		    {
+			if (mode_shown[k]) continue;
+			kmode = find_mode_by_xid (output_info->modes[k]);
+			if (strcmp (jmode->name, kmode->name) != 0) continue;
+			mode_shown[k] = True;
+			printf (" %6.1f", mode_refresh (kmode));
+			if (kmode == output->mode_info)
+			    printf ("*");
+			else
+			    printf (" ");
+			if (k < output_info->npreferred)
+			    printf ("+");
+			else
+			    printf (" ");
+		    }
+		    printf ("\n");
+		}
+		free (mode_shown);
 	    }
 	}
 	exit (0);

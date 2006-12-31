@@ -904,6 +904,14 @@ apply (void)
     }
 
     /*
+     * Hold the server grabbed while messing with
+     * the screen so that apps which notice the resize
+     * event and ask for xinerama information from the server
+     * receive up-to-date information
+     */
+    XGrabServer (dpy);
+    
+    /*
      * Set the screen size
      */
     screen_apply ();
@@ -920,6 +928,11 @@ apply (void)
 	if (s != RRSetConfigSuccess)
 	    panic (s, crtc);
     }
+    /*
+     * Release the server grab and let all clients
+     * respond to the updated state
+     */
+    XUngrabServer (dpy);
 }
 
 /*

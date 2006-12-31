@@ -34,12 +34,17 @@
 #include <X11/extensions/Xrender.h>	/* we share subpixel information */
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 #if RANDR_MAJOR > 1 || (RANDR_MAJOR == 1 && RANDR_MINOR >= 2)
 #define HAS_RANDR_1_2 1
 #endif
 
-static char *program_name;
+static char	*program_name;
+static Display	*dpy;
+static Window	root;
+static int	screen = -1;
+static int	verbose = 0;
 
 static char *direction[5] = {
     "normal", 
@@ -74,12 +79,14 @@ usage(void)
     fprintf(stderr, "  -y        (reflect in y)\n");
     fprintf(stderr, "  --screen <screen>\n");
     fprintf(stderr, "  --verbose\n");
+    fprintf(stderr, "  --dryrun\n");
 #if HAS_RANDR_1_2
     fprintf(stderr, "  --fb <width>x<height>\n");
+    fprintf(stderr, "  --fbmm <width>x<height>\n");
     fprintf(stderr, "  --dpi <dpi>\n");
 #if 0
     fprintf(stderr, "  --clone\n");
-    fprintf(stderr, "  --panorama\n");
+    fprintf(stderr, "  --extend\n");
 #endif
     fprintf(stderr, "  --output <output>\n");
     fprintf(stderr, "      --crtc <crtc>\n");
@@ -87,12 +94,10 @@ usage(void)
     fprintf(stderr, "      --preferred\n");
     fprintf(stderr, "      --pos <x>x<y>\n");
     fprintf(stderr, "      --auto\n");
-#if 0
     fprintf(stderr, "      --left-of <output>\n");
     fprintf(stderr, "      --right-of <output>\n");
     fprintf(stderr, "      --above <output>\n");
     fprintf(stderr, "      --below <output>\n");
-#endif
     fprintf(stderr, "      --off\n");
 #endif
 
@@ -100,33 +105,118 @@ usage(void)
     /*NOTREACHED*/
 }
 
+static void
+fatal (const char *format, ...)
+{
+    va_list ap;
+    
+    va_start (ap, format);
+    fprintf (stderr, "%s: ", program_name);
+    vfprintf (stderr, format, ap);
+    va_end (ap);
+    exit (1);
+    /*NOTREACHED*/
+}
+
+static char *
+rotation_name (Rotation rotation)
+{
+    int	i;
+
+    for (i = 0; i < 4; i++)
+	if (rotation & (1 << i))
+	    return direction[i];
+    return "invalid rotation";
+}
+
+static char *
+reflection_name (Rotation rotation, Bool verbose)
+{
+    rotation &= (RR_Reflect_X|RR_Reflect_Y);
+    switch (rotation) {
+    case 0:
+	return verbose ? "none" : "";
+    case RR_Reflect_X:
+	return "X axis";
+    case RR_Reflect_Y:
+	return "Y axis";
+    case RR_Reflect_X|RR_Reflect_Y:
+	return "X and Y axis";
+    }
+}
+
 #if HAS_RANDR_1_2
-typedef enum _xrandr_policy {
-    xrandr_clone, xrandr_panorama
-} xrandr_policy_t;
+typedef enum _policy {
+    clone, extend
+} policy_t;
 
-typedef enum _xrandr_relation {
-    xrandr_left_of, xrandr_right_of, xrandr_above, xrandr_below
-} xrandr_relation_t;
+typedef enum _relation {
+    left_of, right_of, above, below
+} relation_t;
 
-typedef struct _xrandr_output {
-    struct _xrandr_output   *next;
-    char		    *output;
-    XRROutputInfo	    *output_info;
-    RROutput		    randr_output;
-    char		    *crtc;
-    RRCrtc		    randr_crtc;
-    XRRCrtcInfo		    *crtc_info;
-    char		    *mode;
-    RRMode		    randr_mode;
-    XRRModeInfo		    *mode_info;
-    xrandr_relation_t	    relation;
-    char		    *relative_to;
-    int			    x, y;
-    Rotation		    rotation;
-    int			    setit;
-    int			    automatic;
-} xrandr_output_t;
+typedef enum _changes {
+    changes_none = 0,
+    changes_crtc = (1 << 0),
+    changes_mode = (1 << 1),
+    changes_relation = (1 << 2),
+    changes_position = (1 << 3),
+    changes_rotation = (1 << 4),
+    changes_automatic = (1 << 5),
+} changes_t;
+
+typedef enum _name_kind {
+    name_none = 0,
+    name_string = (1 << 0),
+    name_xid = (1 << 1),
+    name_index = (1 << 2),
+    name_preferred = (1 << 3),
+} name_kind_t;
+
+typedef struct {
+    name_kind_t	    kind;
+    char    	    *string;
+    XID	    	    xid;
+    int		    index;
+} name_t;
+
+typedef struct _crtc crtc_t;
+typedef struct _output	output_t;
+
+struct _crtc {
+    name_t	    crtc;
+    Bool	    changing;
+    XRRCrtcInfo	    *crtc_info;
+
+    XRRModeInfo	    *mode_info;
+    int		    x;
+    int		    y;
+    Rotation	    rotation;
+    output_t	    **outputs;
+    int		    noutput;
+};
+
+struct _output {
+    struct _output   *next;
+    
+    changes_t	    changes;
+    
+    name_t	    output;
+    XRROutputInfo   *output_info;
+    
+    name_t	    crtc;
+    crtc_t	    *crtc_info;
+    
+    name_t	    mode;
+    XRRModeInfo	    *mode_info;
+    
+    relation_t	    relation;
+    char	    *relative_to;
+
+    int		    x, y;
+    Rotation	    rotation;
+    
+    Bool    	    automatic;
+};
 
 static char *connection[3] = {
     "connected",
@@ -145,6 +235,16 @@ static char *connection[3] = {
 #define MODE_PREF   4
 
 #define POS_UNSET   -1
+
+static output_t	*outputs = NULL;
+static output_t	**outputs_tail = &outputs;
+static crtc_t	*crtcs;
+static int	num_crtcs;
+static XRRScreenResources  *res;
+static int	fb_width = 0, fb_height = 0;
+static int	fb_width_mm = 0, fb_height_mm = 0;
+static double	dpi = 0;
+static Bool	dryrun = False;
 
 static int
 mode_height (XRRModeInfo *mode_info, Rotation rotation)
@@ -176,21 +276,896 @@ mode_width (XRRModeInfo *mode_info, Rotation rotation)
     }
 }
 
+static void
+init_name (name_t *name)
+{
+    name->kind = name_none;
+}
+
+static void
+set_name_string (name_t *name, char *string)
+{
+    name->kind |= name_string;
+    name->string = string;
+}
+
+static void
+set_name_xid (name_t *name, XID xid)
+{
+    name->kind |= name_xid;
+    name->xid = xid;
+}
+
+static void
+set_name_index (name_t *name, int index)
+{
+    name->kind |= name_index;
+    name->index = index;
+}
+
+static void
+set_name_preferred (name_t *name)
+{
+    name->kind |= name_preferred;
+}
+
+static void
+set_name_all (name_t *name, name_t *old)
+{
+    if (old->kind & name_xid)
+	name->xid = old->xid;
+    if (old->kind & name_string)
+	name->string = old->string;
+    if (old->kind & name_index)
+	name->index = old->index;
+    name->kind |= old->kind;
+}
+
+static void
+set_name (name_t *name, char *string, name_kind_t valid)
+{
+    XID	xid;
+    int index;
+
+    if ((valid & name_xid) && sscanf (string, "0x%x", &xid) == 1)
+	set_name_xid (name, xid);
+    else if ((valid & name_index) && sscanf (string, "%d", &index) == 1)
+	set_name_index (name, index);
+    else if (valid & name_string)
+	set_name_string (name, string);
+    else
+	usage ();
+}
+
+static output_t *
+add_output (void)
+{
+    output_t *output = calloc (1, sizeof (output_t));
+
+    if (!output)
+	fatal ("out of memory");
+    output->next = NULL;
+    *outputs_tail = output;
+    outputs_tail = &output->next;
+    return output;
+}
+
+static output_t *
+find_output (name_t *name)
+{
+    output_t *output;
+
+    for (output = outputs; output; output = output->next)
+    {
+	name_kind_t common = name->kind & output->output.kind;
+	
+	if ((common & name_xid) && name->xid == output->output.xid)
+	    break;
+	if ((common & name_string) && !strcmp (name->string, output->output.string))
+	    break;
+	if ((common & name_index) & name->index == output->output.index)
+	    break;
+    }
+    return output;
+}
+
+
+static crtc_t *
+find_crtc (name_t *name)
+{
+    int	    c;
+    crtc_t  *crtc = NULL;
+
+    for (c = 0; c < num_crtcs; c++)
+    {
+	name_kind_t common;
+	
+	crtc = &crtcs[c];
+	common = name->kind & crtc->crtc.kind;
+	
+	if ((common & name_xid) && name->xid == crtc->crtc.xid)
+	    break;
+	if ((common & name_string) && !strcmp (name->string, crtc->crtc.string))
+	    break;
+	if ((common & name_index) & name->index == crtc->crtc.index)
+	    break;
+	crtc = NULL;
+    }
+    return crtc;
+}
+
+static crtc_t *
+find_crtc_by_xid (RRCrtc crtc)
+{
+    name_t  crtc_name;
+
+    init_name (&crtc_name);
+    set_name_xid (&crtc_name, crtc);
+    return find_crtc (&crtc_name);
+}
+
+static XRRModeInfo *
+find_mode (name_t *name)
+{
+    int		m;
+    XRRModeInfo	*mode = NULL;
+
+    for (m = 0; m < res->nmode; m++)
+    {
+	mode = &res->modes[m];
+	if ((name->kind & name_xid) && name->xid == mode->id)
+	    break;
+	if ((name->kind & name_string) && !strcmp (name->string, mode->name))
+	    break;
+	mode = NULL;
+    }
+    return mode;
+}
+
+static XRRModeInfo *
+find_mode_by_xid (RRMode mode)
+{
+    name_t  mode_name;
+
+    init_name (&mode_name);
+    set_name_xid (&mode_name, mode);
+    return find_mode (&mode_name);
+}
+
+static
+XRRModeInfo *
+find_mode_for_output (output_t *output, name_t *name)
+{
+    XRROutputInfo   *output_info = output->output_info;
+    int		    m;
+    XRRModeInfo	    *mode = NULL;
+
+    for (m = 0; m < output_info->nmode; m++)
+    {
+	mode = find_mode_by_xid (output_info->modes[m]);
+	if (!mode) continue;
+	if ((name->kind & name_xid) && name->xid == mode->id)
+	    break;
+	if ((name->kind & name_string) && !strcmp (name->string, mode->name))
+	    break;
+	mode = NULL;
+    }
+    return mode;
+}
+
+XRRModeInfo *
+preferred_mode (output_t *output)
+{
+    XRROutputInfo   *output_info = output->output_info;
+    int		    m;
+    XRRModeInfo	    *best;
+    int		    bestDist;
+    
+    best = NULL;
+    bestDist = 0;
+    for (m = 0; m < output_info->nmode; m++)
+    {
+	XRRModeInfo *mode_info = find_mode_by_xid (output_info->modes[m]);
+	int	    dist;
+	
+	if (m < output_info->npreferred)
+	    dist = 0;
+	else if (output_info->mm_height)
+	    dist = (1000 * DisplayHeight(dpy, screen) / DisplayHeightMM(dpy, screen) -
+		    1000 * mode_info->height / output_info->mm_height);
+	else
+	    dist = DisplayHeight(dpy, screen) - mode_info->height;
+
+        if (dist < 0) dist = -dist;
+	if (!best || dist < bestDist)
+	{
+	    best = mode_info;
+	    bestDist = dist;
+	}
+    }
+    if (best)
+    	set_name_xid (&output->mode, best->id);
+	
+    return best;
+}
+
+static Bool
+output_can_use_crtc (output_t *output, crtc_t *crtc)
+{
+    XRROutputInfo   *output_info = output->output_info;
+    int		    c;
+
+    for (c = 0; c < output_info->ncrtc; c++)
+	if (output_info->crtcs[c] == crtc->crtc.xid)
+	    return True;
+    return False;
+}
+
+static Bool
+output_can_use_mode (output_t *output, XRRModeInfo *mode)
+{
+    XRROutputInfo   *output_info = output->output_info;
+    int		    m;
+
+    for (m = 0; m < output_info->nmode; m++)
+	if (output_info->modes[m] == mode->id)
+	    return True;
+    return False;
+}
+
+static Bool
+crtc_can_use_rotation (crtc_t *crtc, Rotation rotation)
+{
+    Rotation	rotations = crtc->crtc_info->rotations;
+    Rotation	dir = rotation & (RR_Rotate_0|RR_Rotate_90|RR_Rotate_180|RR_Rotate_270);
+    Rotation	reflect = rotation & (RR_Reflect_X|RR_Reflect_Y);
+    if ((rotations & dir) && (rotations & reflect == reflect))
+	return True;
+    return False;
+}
+
+static Bool
+output_can_use_rotation (output_t *output, Rotation rotation)
+{
+    XRROutputInfo   *output_info = output->output_info;
+    int		    c;
+
+    /* make sure all of the crtcs can use this rotation.
+     * yes, this is not strictly necessary, but it is 
+     * simpler,and we expect most drivers to either
+     * support rotation everywhere or nowhere
+     */
+    for (c = 0; c < output_info->ncrtc; c++)
+    {
+	crtc_t	*crtc = find_crtc_by_xid (output_info->crtcs[c]);
+	if (crtc && !crtc_can_use_rotation (crtc, rotation))
+	    return False;
+    }
+    return True;
+}
+
+static void
+set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
+{
+    /* set output name and info */
+    if (!(output->output.kind & name_xid))
+	set_name_xid (&output->output, xid);
+    if (!(output->output.kind & name_string))
+	set_name_string (&output->output, output_info->name);
+    output->output_info = output_info;
+
+    /* set crtc name and info */
+    if (!(output->changes & changes_crtc))
+	set_name_xid (&output->crtc, output_info->crtc);
+    
+    if (output->crtc.kind == name_xid && output->crtc.xid == None)
+	output->crtc_info = NULL;
+    else
+    {
+	output->crtc_info = find_crtc (&output->crtc);
+	if (!output->crtc_info)
+	{
+	    if (output->crtc.kind & name_xid)
+		fatal ("cannot find crtc 0x%x\n", output->crtc.xid);
+	    if (output->crtc.kind & name_index)
+		fatal ("cannot find crtc %d\n", output->crtc.index);
+	}
+	if (!output_can_use_crtc (output, output->crtc_info))
+	    fatal ("output %s cannot use crtc 0x%x\n", output->output.string,
+		   output->crtc_info->crtc.xid);
+    }
+
+    /* set mode name and info */
+    if (!(output->changes & changes_mode))
+    {
+	if (output->crtc_info)
+	    set_name_xid (&output->mode, output->crtc_info->crtc_info->mode);
+	else
+	    set_name_xid (&output->mode, None);
+    }
+    if (output->mode.kind == name_xid && output->mode.xid == None)
+	output->mode_info = NULL;
+    else
+    {
+	if (output->mode.kind == name_preferred)
+	    output->mode_info = preferred_mode (output);
+	else
+	    output->mode_info = find_mode_for_output (output, &output->mode);
+	if (!output->mode_info)
+	{
+	    if (output->mode.kind & name_preferred)
+		fatal ("cannot find preferred mode\n");
+	    if (output->mode.kind & name_string)
+		fatal ("cannot find mode %s\n", output->mode.string);
+	    if (output->mode.kind & name_xid)
+		fatal ("cannot find mode 0x%x\n", output->mode.xid);
+	}
+	if (!output_can_use_mode (output, output->mode_info))
+	    fatal ("output %s cannot use mode %s\n", output->output.string,
+		   output->mode_info->name);
+    }
+
+    /* set position */
+    if (!(output->changes & changes_position))
+    {
+	if (output->crtc_info)
+	{
+	    output->x = output->crtc_info->crtc_info->x;
+	    output->y = output->crtc_info->crtc_info->y;
+	}
+	else
+	{
+	    output->x = 0;
+	    output->y = 0;
+	}
+    }
+
+    /* set rotation */
+    if (!(output->changes & changes_rotation))
+    {
+	if (output->crtc_info)
+	    output->rotation = output->crtc_info->crtc_info->rotation;
+	else
+	    output->rotation = RR_Rotate_0;
+    }
+    if (!output_can_use_rotation (output, output->rotation))
+	fatal ("output %s cannot use rotation %s %s\n",
+	       output->output.string,
+	       rotation_name (output->rotation),
+	       reflection_name (output->rotation, False));
+}
+    
+static void
+get_crtcs (void)
+{
+    int		c;
+
+    num_crtcs = res->ncrtc;
+    crtcs = calloc (num_crtcs, sizeof (crtc_t));
+    if (!crtcs) fatal ("out of memory");
+    
+    for (c = 0; c < res->ncrtc; c++)
+    {
+	XRRCrtcInfo *crtc_info = XRRGetCrtcInfo (dpy, res, res->crtcs[c]);
+	set_name_xid (&crtcs[c].crtc, res->crtcs[c]);
+	set_name_index (&crtcs[c].crtc, c);
+	if (!crtc_info) fatal ("could not get crtc 0x%x information", res->crtcs[c]);
+	crtcs[c].crtc_info = crtc_info;
+	if (crtc_info->mode == None)
+	{
+	    crtcs[c].mode_info = NULL;
+	    crtcs[c].x = 0;
+	    crtcs[c].y = 0;
+	    crtcs[c].rotation = RR_Rotate_0;
+	}
+    }
+}
+
+static void
+crtc_add_output (crtc_t *crtc, output_t *output)
+{
+    if (crtc->outputs)
+	crtc->outputs = realloc (crtc->outputs, (crtc->noutput + 1) * sizeof (output_t *));
+    else
+    {
+	crtc->outputs = malloc (sizeof (output_t *));
+	crtc->x = output->x;
+	crtc->y = output->y;
+	crtc->rotation = output->rotation;
+	crtc->mode_info = output->mode_info;
+    }
+    if (!crtc->outputs) fatal ("out of memory");
+    crtc->outputs[crtc->noutput++] = output;
+    if (output->changes)
+	crtc->changing = True;
+}
+
+static void
+set_crtcs (void)
+{
+    output_t	*output;
+
+    for (output = outputs; output; output = output->next)
+    {
+	if (!output->mode_info) continue;
+	crtc_add_output (output->crtc_info, output);
+    }
+}
+
+static Status
+crtc_disable (crtc_t *crtc)
+{
+    XRRCrtcInfo	*crtc_info = crtc->crtc_info;
+    if (dryrun)
+	return RRSetConfigSuccess;
+    return XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
+			     0, 0, None, RR_Rotate_0, NULL, 0);
+}
+
+static Status
+crtc_revert (crtc_t *crtc)
+{
+    XRRCrtcInfo	*crtc_info = crtc->crtc_info;
+    if (dryrun)
+	return RRSetConfigSuccess;
+    return XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
+			    crtc_info->x, crtc_info->y,
+			    crtc_info->mode, crtc_info->rotation,
+			    crtc_info->outputs, crtc_info->noutput);
+}
+
+static Status
+crtc_apply (crtc_t *crtc)
+{
+    RROutput	*rr_outputs;
+    int		o;
+    Status	s;
+    RRMode	mode = None;
+
+    if (!crtc->changing || !crtc->mode_info)
+	return RRSetConfigSuccess;
+
+    rr_outputs = calloc (crtc->noutput, sizeof (RROutput));
+    if (!rr_outputs)
+	return BadAlloc;
+    for (o = 0; o < crtc->noutput; o++)
+	rr_outputs[o] = crtc->outputs[o]->output.xid;
+    mode = crtc->mode_info->id;
+    if (verbose) {
+	printf ("crtc %d: %s +%d+%d", crtc->crtc.index,
+		crtc->mode_info->name, crtc->x, crtc->y);
+	for (o = 0; o < crtc->noutput; o++)
+	    printf (" \"%s\"", crtc->outputs[o]->output.string);
+	printf ("\n");
+    }
+    
+    if (dryrun)
+	s = RRSetConfigSuccess;
+    else
+	s = XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
+			      crtc->x, crtc->y, mode, crtc->rotation,
+			      rr_outputs, crtc->noutput);
+    free (rr_outputs);
+    return s;
+}
+
+static void
+screen_revert (void)
+{
+    if (dryrun)
+	return;
+    XRRSetScreenSize (dpy, root,
+		      DisplayWidth (dpy, screen),
+		      DisplayHeight (dpy, screen),
+		      DisplayWidthMM (dpy, screen),
+		      DisplayHeightMM (dpy, screen));
+}
+
+static void
+screen_apply (void)
+{
+    if (fb_width == DisplayWidth (dpy, screen) &&
+	fb_height == DisplayHeight (dpy, screen) &&
+	fb_width_mm == DisplayWidthMM (dpy, screen) &&
+	fb_height_mm == DisplayHeightMM (dpy, screen))
+	return;
+    if (verbose)
+	printf ("screen %d: %dx%d (%dx%d mm)\n", screen,
+		fb_width, fb_height, fb_width_mm, fb_height_mm);
+    if (dryrun)
+	return;
+    XRRSetScreenSize (dpy, root, fb_width, fb_height,
+		      fb_width_mm, fb_height_mm);
+}
+
+static void
+revert (void)
+{
+    int	c;
+
+    /* first disable all crtcs */
+    for (c = 0; c < res->ncrtc; c++)
+	crtc_disable (&crtcs[c]);
+    /* next reset screen size */
+    screen_revert ();
+    /* now restore all crtcs */
+    for (c = 0; c < res->ncrtc; c++)
+	crtc_revert (&crtcs[c]);
+}
+
+/*
+ * uh-oh, something bad happened in the middle of changing
+ * the configuration. Revert to the previous configuration
+ * and bail
+ */
+static void
+panic (Status s, crtc_t *crtc)
+{
+    int	    c = crtc->crtc.index;
+    char    *message;
+    
+    revert ();
+    
+    switch (s) {
+    case RRSetConfigSuccess:		message = "succeeded";		    break;
+    case BadAlloc:			message = "out of memory";	    break;
+    case RRSetConfigFailed:		message = "failed";		    break;
+    case RRSetConfigInvalidConfigTime:	message = "invalid config time";    break;
+    case RRSetConfigInvalidTime:	message = "invalid time";	    break;
+    default:				message = "unknown failure";	    break;
+    }
+    
+    fatal ("Configure crtc %d %s\n", c, message);
+}
+
+void
+apply (void)
+{
+    Status  s;
+    int	    c;
+    
+    /*
+     * Turn off any crtcs which are to be disabled or which are
+     * larger than the target size
+     */
+    for (c = 0; c < res->ncrtc; c++)
+    {
+	crtc_t	    *crtc = &crtcs[c];
+	XRRCrtcInfo *crtc_info = crtc->crtc_info;
+
+	/* if this crtc is already disabled, skip it */
+	if (crtc_info->mode == None) 
+	    continue;
+	
+	/* 
+	 * If this crtc is to be left enabled, make
+	 * sure the old size fits then new screen
+	 */
+	if (crtc->mode_info) 
+	{
+	    XRRModeInfo	*old_mode = find_mode_by_xid (crtc_info->mode);
+	    int x, y, w, h;
+
+	    if (!old_mode) 
+		panic (RRSetConfigFailed, crtc);
+	    
+	    /* old position and size information */
+	    x = crtc_info->x;
+	    y = crtc_info->y;
+	    w = mode_width (old_mode, crtc_info->rotation);
+	    h = mode_height (old_mode, crtc_info->rotation);
+	    
+	    /* if it fits, skip it */
+	    if (x + w <= fb_width && y + h <= fb_height) 
+		continue;
+	    crtc->changing = True;
+	}
+	else
+	{
+	    if (verbose)
+		printf ("crtc %d: disable\n", c);
+	}
+	s = crtc_disable (crtc);
+	if (s != RRSetConfigSuccess)
+	    panic (s, crtc);
+    }
+
+    /*
+     * Set the screen size
+     */
+    screen_apply ();
+    
+    /*
+     * Set crtcs
+     */
+
+    for (c = 0; c < res->ncrtc; c++)
+    {
+	crtc_t	*crtc = &crtcs[c];
+	
+	s = crtc_apply (crtc);
+	if (s != RRSetConfigSuccess)
+	    panic (s, crtc);
+    }
+}
+
+void
+get_outputs (void)
+{
+    int		o;
+    
+    for (o = 0; o < res->noutput; o++)
+    {
+	XRROutputInfo	*output_info = XRRGetOutputInfo (dpy, res, res->outputs[o]);
+	output_t	*output;
+	name_t		output_name;
+	if (!output_info) fatal ("could not get output 0x%x information", res->outputs[o]);
+	set_name_xid (&output_name, res->outputs[o]);
+	set_name_index (&output_name, o);
+	set_name_string (&output_name, output_info->name);
+	output = find_output (&output_name);
+	if (!output)
+	{
+	    output = add_output ();
+	    set_name_all (&output->output, &output_name);
+	}
+
+	if (output->automatic)
+	{
+	    switch (output_info->connection) {
+	    case RR_Connected:
+	    case RR_UnknownConnection:
+		if ((!(output->changes & changes_mode)))
+		{
+		    set_name_preferred (&output->mode);
+		    output->changes |= changes_mode;
+		}
+		break;
+	    case RR_Disconnected:
+		if ((!(output->changes & changes_mode)))
+		{
+		    set_name_xid (&output->mode, None);
+		    set_name_xid (&output->crtc, None);
+		    output->changes |= changes_mode;
+		    output->changes |= changes_crtc;
+		}
+		break;
+	    }
+	}
+
+	set_output_info (output, res->outputs[o], output_info);
+    }
+}
+
+void
+mark_changing_crtcs (void)
+{
+    int	c;
+    output_t	*output;
+
+    /*
+     * Mark all crtcs with changing outputs as changing
+     */
+    for (c = 0; c < num_crtcs; c++)
+    {
+	crtc_t	    *crtc = &crtcs[c];
+	int	    o;
+
+	for (o = 0; o < crtc->crtc_info->noutput; o++)
+	{
+	    name_t	output_name;
+
+	    init_name (&output_name);
+	    set_name_xid (&output_name, crtc->crtc_info->outputs[o]);
+	    output = find_output (&output_name);
+	    if (!output) fatal ("cannot find output 0x%x\n", output_name.xid);
+	    if (output->changes)
+		crtc->changing = True;
+	}
+    }
+    /*
+     * Mark all crtcs gaining outputs as changing
+     */
+    for (output = outputs; output; output = output->next)
+    {
+	crtc_t	*crtc;
+	
+	if (output->changes == changes_none) continue;
+	if (!(output->crtc.kind & name_xid)) continue;
+	if (output->crtc.xid == None) continue;
+	crtc = find_crtc_by_xid (output->crtc.xid);
+	if (!crtc) fatal ("cannot find crtc 0x%x\n", output->crtc.xid);
+	crtc->changing = True;
+    }
+}
+
+crtc_t *
+find_crtc_for_output (output_t *output)
+{
+    int	    c;
+
+    for (c = 0; c < output->output_info->ncrtc; c++)
+    {
+	crtc_t	*crtc;
+	int	l, o;
+
+	crtc = find_crtc_by_xid (output->output_info->crtcs[c]);
+	if (!crtc) fatal ("cannot find crtc 0x%x\n", output->output_info->crtcs[c]);
+
+	/* make sure all of the outputs currently connected can share */
+	for (o = 0; o < crtc->noutput; o++)
+	{
+	    for (l = 0; l < output->output_info->nclone; l++)
+		if (output->output_info->clones[l] == crtc->outputs[o]->output.xid)
+		    break;
+	    if (l != output->output_info->nclone) break;
+	}
+	if (o != crtc->noutput) continue;
+
+	if (crtc->noutput)
+	{
+	    /* make sure the state matches */
+	    if (crtc->mode_info != output->mode_info) continue;
+	    if (crtc->x != output->x) continue;
+	    if (crtc->y != output->y) continue;
+	    if (crtc->rotation != output->rotation) continue;
+	}
+	return crtc;
+    }
+    return NULL;
+}
+
+static void
+set_positions (void)
+{
+    output_t	*output;
+    Bool	keep_going;
+    Bool	any_set;
+    int		min_x, min_y;
+
+    for (;;)
+    {
+	any_set = False;
+	keep_going = False;
+	for (output = outputs; output; output = output->next)
+	{
+	    output_t    *relation;
+	    name_t	relation_name;
+
+	    if (!(output->changes & changes_relation)) continue;
+	    
+	    init_name (&relation_name);
+	    set_name_string (&relation_name, output->relative_to);
+	    relation = find_output (&relation_name);
+	    if (!relation) fatal ("cannot find output \"%s\"\n", output->relative_to);
+	    
+	    if (relation->mode_info == NULL) fatal ("relative output %s is not active\n",
+						    relation->output.string);
+	    /*
+	     * Make sure the dependent object has been set in place
+	     */
+	    if ((relation->changes & changes_relation) && 
+		!(relation->changes & changes_position))
+	    {
+		keep_going = True;
+		continue;
+	    }
+	    
+	    switch (output->relation) {
+	    case left_of:
+		output->y = relation->y;
+		output->x = relation->x - mode_width (output->mode_info, output->rotation);
+		break;
+	    case right_of:
+		output->y = relation->y;
+		output->x = relation->x + mode_width (relation->mode_info, relation->rotation);
+		break;
+	    case above:
+		output->x = relation->x;
+		output->y = relation->y - mode_height (output->mode_info, output->rotation);
+		break;
+	    case below:
+		output->x = relation->x;
+		output->y = relation->y + mode_height (relation->mode_info, relation->rotation);
+		break;
+	    }
+	    output->changes |= changes_position;
+	    any_set = True;
+	}
+	if (!keep_going)
+	    break;
+	if (!any_set)
+	    fatal ("loop in relative position specifications\n");
+    }
+
+    /*
+     * Now normalize positions so the upper left corner of all outputs is at 0,0
+     */
+    min_x = 32768;
+    min_y = 32768;
+    for (output = outputs; output; output = output->next)
+    {
+	if (output->mode_info == NULL) continue;
+	
+	if (output->x < min_x) min_x = output->x;
+	if (output->y < min_y) min_y = output->y;
+    }
+    if (min_x || min_y)
+    {
+	/* move all outputs */
+	for (output = outputs; output; output = output->next)
+	{
+	    if (output->mode_info == NULL) continue;
+
+	    output->x -= min_x;
+	    output->y -= min_y;
+	    output->changes |= changes_position;
+	}
+    }
+}
+
+static void
+set_screen_size (void)
+{
+    output_t	*output;
+    Bool	fb_specified = fb_width != 0 && fb_height != 0;
+    int		minWidth, maxWidth, minHeight, maxHeight;
+    
+    XRRGetScreenSizeRange (dpy, root, &minWidth, &minHeight, &maxWidth, &maxHeight);
+    for (output = outputs; output; output = output->next)
+    {
+	XRRModeInfo *mode_info = output->mode_info;
+	int	    x, y, w, h;
+	
+	if (!mode_info) continue;
+	
+	x = output->x;
+	y = output->y;
+	w = mode_width (mode_info, output->rotation);
+	h = mode_height (mode_info, output->rotation);
+	/* make sure output fits in specified size */
+	if (fb_specified)
+	{
+	    if (x + w > fb_width || y + h > fb_height)
+		fatal ("specified screen %dx%d not large enough for output %s (%dx%d+%d+%d)\n",
+		       fb_width, fb_height, output->output.string, w, h, x, y);
+	}
+	/* fit fb to output */
+	else
+	{
+	    if (x + w > fb_width) fb_width = x + w;
+	    if (y + h > fb_height) fb_height = y + h;
+	}
+    }	
+
+    if (fb_width > maxWidth || fb_height > maxHeight)
+        fatal ("screen cannot be larger than %dx%d (desired size %dx%d)\n",
+	       maxWidth, maxHeight, fb_width, fb_height);
+    if (fb_specified)
+    {
+	if (fb_width < minWidth || fb_height < minHeight)
+	    fatal ("screen must be at least %dx%d\n", minWidth, minHeight);
+    }
+    else
+    {
+	if (fb_width < minWidth) fb_width = minWidth;
+	if (fb_height < minHeight) fb_height = minHeight;
+    }
+}
+    
 #endif
     
 int
 main (int argc, char **argv)
 {
-    Display       *dpy;
     XRRScreenSize *sizes;
     XRRScreenConfiguration *sc;
     int		nsize;
     int		nrate;
     short		*rates;
-    Window	root;
     Status	status = RRSetConfigFailed;
     int		rot = -1;
-    int		verbose = 0, query = 0;
+    int		query = 0;
     Rotation	rotation, current_rotation, rotations;
     XEvent	event;
     XRRScreenChangeNotifyEvent *sce;    
@@ -202,7 +1177,6 @@ main (int argc, char **argv)
     int		size = -1;
     int		dirind = 0;
     int		setit = 0;
-    int		screen = -1;
     int		version = 0;
     int		event_base, error_base;
     int		reflection = 0;
@@ -210,17 +1184,13 @@ main (int argc, char **argv)
     int		have_pixel_size = 0;
     int		ret = 0;
 #if HAS_RANDR_1_2
-    xrandr_output_t *xrandr_outputs = NULL;
-    xrandr_output_t *xrandr_output = NULL;
-    xrandr_output_t **xrandr_tail = &xrandr_outputs;
+    output_t	*output = NULL;
     char	*crtc;
-    xrandr_policy_t policy = xrandr_clone;
+    policy_t	policy = clone;
     int		setit_1_2 = 0;
     int		has_1_2 = 0;
     int		query_1_2 = 0;
     int		major, minor;
-    int		fb_width = 0, fb_height = 0;
-    double    	dpi = 0;
     int		automatic = 0;
 #endif
 
@@ -237,6 +1207,11 @@ main (int argc, char **argv)
 	    continue;
 	}
 	if (!strcmp ("--verbose", argv[i])) {
+	    verbose = 1;
+	    continue;
+	}
+	if (!strcmp ("--dryrun", argv[i])) {
+	    dryrun = 1;
 	    verbose = 1;
 	    continue;
 	}
@@ -303,115 +1278,91 @@ main (int argc, char **argv)
 #if HAS_RANDR_1_2
 	if (!strcmp ("--output", argv[i])) {
 	    if (++i >= argc) usage();
-	    xrandr_output = malloc (sizeof (xrandr_output_t));
-	    if (!xrandr_output)
-		usage();
-	    xrandr_output->next = NULL;
+	    output = add_output ();
 
-	    xrandr_output->output = argv[i];
-	    if (sscanf (xrandr_output->output, "0x%x", &xrandr_output->randr_output) != 1)
-		xrandr_output->randr_output = OUTPUT_NAME;
-	    xrandr_output->output_info = NULL;
+	    set_name (&output->output, argv[i], name_string|name_xid);
 	    
-	    xrandr_output->crtc = NULL;
-	    xrandr_output->randr_crtc = CRTC_UNSET;
-	    xrandr_output->crtc_info = NULL;
-	    
-	    xrandr_output->mode = NULL;
-	    xrandr_output->randr_mode = MODE_UNSET;
-	    xrandr_output->mode_info = NULL;
-	    
-	    xrandr_output->relation = xrandr_right_of;
-	    xrandr_output->relative_to = NULL;
-	    xrandr_output->x = POS_UNSET;
-	    xrandr_output->y = POS_UNSET;
-	    xrandr_output->rotation = 0;
-	    xrandr_output->automatic = 0;
-	    xrandr_output->setit = 1;
-
-	    *xrandr_tail = xrandr_output;
-	    xrandr_tail = &xrandr_output->next;
 	    setit_1_2 = 1;
-	    
 	    continue;
 	}
 	if (!strcmp ("--crtc", argv[i])) {
 	    if (++i >= argc) usage();
-	    if (!xrandr_output) usage();
-	    xrandr_output->crtc = argv[i];
-	    if (sscanf (xrandr_output->crtc, "%d", &xrandr_output->randr_crtc) == 1)
-		xrandr_output->randr_crtc |= CRTC_INDEX;
-	    else if (sscanf (xrandr_output->crtc, "0x%x", &xrandr_output->randr_crtc) == 1)
-		;
-	    else
-		usage ();
+	    if (!output) usage();
+	    set_name (&output->crtc, argv[i], name_xid|name_index);
+	    output->changes |= changes_crtc;
 	    continue;
 	}
 	if (!strcmp ("--mode", argv[i])) {
 	    if (++i >= argc) usage();
-	    if (!xrandr_output) usage();
-	    xrandr_output->mode = argv[i];
-	    if (sscanf (xrandr_output->mode, "0x%x", &xrandr_output->randr_mode) != 1)
-		xrandr_output->randr_mode = MODE_NAME;
+	    if (!output) usage();
+	    set_name (&output->mode, argv[i], name_string|name_xid);
+	    output->changes |= changes_mode;
 	    continue;
 	}
 	if (!strcmp ("--preferred", argv[i])) {
-	    if (!xrandr_output) usage();
-	    xrandr_output->mode = argv[i];
-	    xrandr_output->randr_mode = MODE_PREF;
+	    if (!output) usage();
+	    set_name_preferred (&output->mode);
+	    output->changes |= changes_mode;
 	    continue;
 	}
 	if (!strcmp ("--pos", argv[i])) {
 	    if (++i>=argc) usage ();
-	    if (!xrandr_output) usage();
+	    if (!output) usage();
 	    if (sscanf (argv[i], "%dx%d",
-			&xrandr_output->x, &xrandr_output->y) != 2)
+			&output->x, &output->y) != 2)
 		usage ();
+	    output->changes |= changes_position;
 	    continue;
 	}
 	if (!strcmp ("--rotation", argv[i])) {
 	    if (++i>=argc) usage ();
-	    if (!xrandr_output) usage();
+	    if (!output) usage();
 	    for (dirind = 0; dirind < 4; dirind++) {
 		if (strcmp (direction[dirind], argv[i]) == 0) break;
 	    }
 	    if (dirind == 4)
 		usage ();
-	    xrandr_output->rotation = 1 << dirind;
+	    output->rotation = 1 << dirind;
+	    output->changes |= changes_rotation;
 	    continue;
 	}
 	if (!strcmp ("--left-of", argv[i])) {
 	    if (++i>=argc) usage ();
-	    if (!xrandr_output) usage();
-	    xrandr_output->relation = xrandr_left_of;
-	    xrandr_output->relative_to = argv[i];
+	    if (!output) usage();
+	    output->relation = left_of;
+	    output->relative_to = argv[i];
+	    output->changes |= changes_relation;
 	    continue;
 	}
 	if (!strcmp ("--right-of", argv[i])) {
 	    if (++i>=argc) usage ();
-	    if (!xrandr_output) usage();
-	    xrandr_output->relation = xrandr_right_of;
-	    xrandr_output->relative_to = argv[i];
+	    if (!output) usage();
+	    output->relation = right_of;
+	    output->relative_to = argv[i];
+	    output->changes |= changes_relation;
 	    continue;
 	}
 	if (!strcmp ("--above", argv[i])) {
 	    if (++i>=argc) usage ();
-	    if (!xrandr_output) usage();
-	    xrandr_output->relation = xrandr_above;
-	    xrandr_output->relative_to = argv[i];
+	    if (!output) usage();
+	    output->relation = above;
+	    output->relative_to = argv[i];
+	    output->changes |= changes_relation;
 	    continue;
 	}
 	if (!strcmp ("--below", argv[i])) {
 	    if (++i>=argc) usage ();
-	    if (!xrandr_output) usage();
-	    xrandr_output->relation = xrandr_below;
-	    xrandr_output->relative_to = argv[i];
+	    if (!output) usage();
+	    output->relation = below;
+	    output->relative_to = argv[i];
+	    output->changes |= changes_relation;
 	    continue;
 	}
 	if (!strcmp ("--off", argv[i])) {
-	    if (!xrandr_output) usage();
-	    xrandr_output->mode = "off";
-	    xrandr_output->randr_mode = MODE_OFF;
+	    if (!output) usage();
+	    set_name_xid (&output->mode, None);
+	    set_name_xid (&output->crtc, None);
+	    output->changes |= changes_mode;
 	    continue;
 	}
 	if (!strcmp ("--fb", argv[i])) {
@@ -420,7 +1371,14 @@ main (int argc, char **argv)
 			&fb_width, &fb_height) != 2)
 		usage ();
 	    setit_1_2 = 1;
-
+	    continue;
+	}
+	if (!strcmp ("--fbmm", argv[i])) {
+	    if (++i>=argc) usage ();
+	    if (sscanf (argv[i], "%dx%d",
+			&fb_width_mm, &fb_height_mm) != 2)
+		usage ();
+	    setit_1_2 = 1;
 	    continue;
 	}
 	if (!strcmp ("--dpi", argv[i])) {
@@ -431,18 +1389,21 @@ main (int argc, char **argv)
 	    continue;
 	}
 	if (!strcmp ("--clone", argv[i])) {
-	    policy = xrandr_clone;
+	    policy = clone;
 	    setit_1_2 = 1;
 	    continue;
 	}
-	if (!strcmp ("--panorama", argv[i])) {
-	    policy = xrandr_panorama;
+	if (!strcmp ("--extend", argv[i])) {
+	    policy = extend;
 	    setit_1_2 = 1;
 	    continue;
 	}
 	if (!strcmp ("--auto", argv[i])) {
-	    if (xrandr_output)
-		xrandr_output->automatic = 1;
+	    if (output)
+	    {
+		output->automatic = True;
+		output->changes |= changes_automatic;
+	    }
 	    automatic = 1;
 	    setit_1_2 = 1;
 	    continue;
@@ -484,22 +1445,14 @@ main (int argc, char **argv)
 	
     if (setit_1_2)
     {
-	XRRScreenResources  *res;
-	XRROutputInfo	    **output_infos;
-	XRRCrtcInfo	    **crtc_infos;
 	XRROutputInfo	    *output_info;
 	XRRCrtcInfo	    *crtc_info;
 	XRRCrtcInfo	    *crtc_cur;
 	XRRModeInfo	    *mode_info;
-	RROutput	    *outputs;
-	int		    noutput;
-	Bool		    *output_changing;
-	Bool		    *crtc_changing;
+	RROutput	    *crtc_outputs;
+	int		    n_crtc_output;
 	int		    c, o, m;
 	int		    om, sm;
-	int		    w = fb_width, h = fb_height;
-	int		    minWidth, maxWidth, minHeight, maxHeight;
-	int		    best, bestDist;
 
 	if (!has_1_2)
 	{
@@ -507,499 +1460,57 @@ main (int argc, char **argv)
 	    exit (1);
 	}
 	res = XRRGetScreenResources (dpy, root);
-	if (!res) usage ();
-	output_infos = malloc (res->noutput * sizeof (XRROutputInfo *));
-	output_changing = malloc (res->noutput * sizeof (Bool));
-	outputs = malloc (res->noutput * sizeof (RROutput));
-	for (o = 0; o < res->noutput; o++)
-	{
-	    output_infos[o] = XRRGetOutputInfo (dpy, res, res->outputs[o]);
-	    output_changing[o] = False;
-	}
-	crtc_infos = malloc (res->ncrtc * sizeof (XRRCrtcInfo *));
-	crtc_changing = malloc (res->ncrtc * sizeof (Bool));
-	for (c = 0; c < res->ncrtc; c++)
-	{
-	    crtc_infos[c] = XRRGetCrtcInfo (dpy, res, res->crtcs[c]);
-	    crtc_changing[c] = False;
-	}
-	
-	/*
-	 * Validate per-output information, fill in missing data
-	 */
-	for (xrandr_output = xrandr_outputs; xrandr_output; xrandr_output = xrandr_output->next)
-	{
-	    /* map argument to output structure */
-	    for (o = 0; o < res->noutput; o++)
-	    {
-		if (xrandr_output->randr_output == OUTPUT_NAME) 
-		{
-		    if (!strcmp (output_infos[o]->name, xrandr_output->output))
-			break;
-		}
-		else
-		{
-		    if (xrandr_output->randr_output == res->outputs[o])
-			break;
-		}
-	    }
-	    if (o == res->noutput)
-	    {
-		fprintf (stderr, "\"%s\": output unknown\n", xrandr_output->output);
-		exit (1);
-	    }
-	    output_changing[o] = True;
-	    
-	    output_info = output_infos[o];
-	    xrandr_output->output_info = output_info;
-	    xrandr_output->randr_output = res->outputs[o];
-	    
-	    /* with --auto, select enable/disable based on connected */
-	    if (xrandr_output->automatic)
-	    {
-		switch (output_info->connection) {
-		case RR_Connected:
-		case RR_UnknownConnection:
-		    if (xrandr_output->randr_mode == MODE_UNSET)
-			xrandr_output->randr_mode = MODE_PREF;
-		    break;
-		case RR_Disconnected:
-		    xrandr_output->randr_mode = MODE_OFF;
-		    break;
-		}
-	    }
-	    
-	    /*
-	     * If using --off, set the desired mode and crtc to None
-	     */
-	    if (xrandr_output->randr_mode == MODE_OFF)
-	    {
-		xrandr_output->randr_mode = None;
-		xrandr_output->randr_crtc = None;
-		xrandr_output->x = 0;
-		xrandr_output->y = 0;
-		xrandr_output->rotation = RR_Rotate_0;
-		for (c = 0; c < res->ncrtc; c++)
-		{
-		    if (res->crtcs[c] == output_info->crtc)
-			break;
-		}
-		if (c < res->ncrtc)
-		{
-		    crtc_info = crtc_infos[c];
-		    crtc_changing[c] = True;
-		}
-	    }
-	    else
-	    {
-		/* map argument to crtc structure (if any) */
-		for (c = 0; c < res->ncrtc; c++)
-		{
-		    if (xrandr_output->randr_crtc & CRTC_INDEX)
-		    {
-			if (c == (xrandr_output->randr_crtc & ~CRTC_INDEX))
-			    break;
-		    }
-		    if (xrandr_output->randr_crtc == CRTC_UNSET)
-		    {
-			if (res->crtcs[c] == output_info->crtc)
-			    break;
-		    }
-		    else if (xrandr_output->randr_crtc == res->crtcs[c])
-			break;
-		}
-		if (c == res->ncrtc && xrandr_output->crtc)
-		{
-		    fprintf (stderr, "\"%s\": crtc unknown\n", xrandr_output->crtc);
-		    exit (1);
-		}
-		if (c < res->ncrtc)
-		{
-		    crtc_info = crtc_infos[c];
-		    xrandr_output->randr_crtc = res->crtcs[c];
-		    crtc_changing[c] = True;
-		}
-		else
-		{
-		    crtc_info = NULL;
-		    xrandr_output->randr_crtc = None;
-		}
-		xrandr_output->crtc_info = crtc_info;		
-		/* find current crtc (if any) */
-		for (c = 0; c < res->ncrtc; c++)
-		    if (res->crtcs[c] == output_info->crtc)
-			break;
-		if (c < res->ncrtc)
-		    crtc_cur = crtc_infos[c];
-		else
-		    crtc_cur = NULL;
+	if (!res) fatal ("could not get screen resources");
 
-		/* map argument to mode structure (if any) */
-		best = -1;
-		bestDist = 0x7fffffff;
-		for (om = 0; om < output_info->nmode; om++)
-		{
-		    for (m = 0; m < res->nmode; m++)
-			if (res->modes[m].id == output_info->modes[om])
-			    break;
-		    if (m == res->nmode)
-		    {
-			fprintf (stderr, "\"%s\": output mode 0x%x not found\n",
-				 output_info->name, output_info->modes[om]);
-			exit (1);
-		    }
-		    mode_info = &res->modes[m];
-		    if (xrandr_output->randr_mode == MODE_UNSET)
-		    {
-			if (crtc_cur && crtc_cur->mode == res->modes[m].id)
-			    break;
-		    }
-		    else if (xrandr_output->randr_mode == MODE_NAME)
-		    {
-			if (!strcmp (xrandr_output->mode, res->modes[m].name))
-			    break;
-		    }
-		    else if (xrandr_output->randr_mode == MODE_PREF)
-		    {
-			if (output_info->npreferred)
-			{
-			    if (om < output_info->npreferred)
-				break;
-			}
-			else if (output_info->mm_height)
-			{
-			    int	dpm_server = 1000 * DisplayHeight(dpy, screen) / DisplayHeightMM(dpy, screen);
-			    int	dpm_mode = 1000 * mode_info->height / output_info->mm_height;
-			    int dist = dpm_server - dpm_mode;
-
-			    if (dist < 0) dist = -dist;
-			    if (dist < bestDist) {
-				bestDist = dist;
-				best = m;
-			    }
-			}
-			else
-			{
-			    int dist = DisplayHeight(dpy, screen) - mode_info->height;
-
-			    if (dist < 0) dist = -dist;
-			    if (dist < bestDist) {
-				bestDist = dist;
-				best = m;
-			    }
-			}
-		    }
-		    else
-		    {
-			if (xrandr_output->randr_mode == res->modes[m].id)
-			    break;
-		    }
-		}
-		if (best != -1)
-		    m = best;
-		if (om == output_info->nmode && xrandr_output->mode)
-		{
-		    fprintf (stderr, "\"%s\": mode \"%s\" not available\n",
-			     output_info->name,
-			     xrandr_output->mode);
-		    exit (1);
-		}
-		if (m < res->nmode)
-		    mode_info = &res->modes[m];
-		else
-		{
-		    fprintf (stderr, "\"%s\": no mode specified or in use\n",
-			     output_info->name);
-		    exit (1);
-		}
-		xrandr_output->mode_info = mode_info;
-		xrandr_output->randr_mode = mode_info->id;
-
-		if (xrandr_output->rotation == 0)
-		{
-		    if (crtc_info)
-			xrandr_output->rotation = crtc_info->rotation;
-		    else
-			xrandr_output->rotation = RR_Rotate_0;
-		}
-		    
-		if (xrandr_output->x == POS_UNSET || xrandr_output->y == POS_UNSET)
-		{
-		    if (crtc_info)
-		    {
-			xrandr_output->x = crtc_info->x;
-			xrandr_output->y = crtc_info->y;
-		    }
-		    else
-		    {
-			xrandr_output->x = 0;
-			xrandr_output->y = 0;
-		    }
-		}
-		
-		if (mode_info)
-		{
-		    if (xrandr_output->x + mode_width (mode_info, xrandr_output->rotation) > w)
-			w = xrandr_output->x + mode_width (mode_info, xrandr_output->rotation);
-		    if (xrandr_output->y + mode_height (mode_info, xrandr_output->rotation) > h)
-			h = xrandr_output->y + mode_height (mode_info, xrandr_output->rotation);
-		}
-	    }
-	}
-	
-	/*
-	 * Take existing output sizes into account to compute new screen size
-	 */
-	for (o = 0; o < res->noutput; o++)
-	{
-	    if (output_changing[o]) continue;
-	    output_info = output_infos[o];
-	    if (!output_info->crtc)
-		continue;
-	    for (c = 0; c < res->ncrtc; c++)
-		if (res->crtcs[c] == output_info->crtc)
-		    break;
-	    if (c == res->ncrtc)
-	    {
-		fprintf (stderr, "\"%s\": connected to unknown crtc 0x%x\n",
-			 output_info->name, output_info->crtc);
-		exit (1);
-	    }
-	    crtc_info = crtc_infos[c];
-	    for (m = 0; m < res->nmode; m++)
-		if (res->modes[m].id == crtc_info->mode)
-		    break;
-	    if (m == res->nmode)
-	    {
-		fprintf (stderr, "crtc 0x%x: using unknown mode 0x%x\n",
-			 res->crtcs[c], crtc_info->mode);
-		exit (1);
-	    }
-	    mode_info = &res->modes[m];
-	    if (crtc_info->x + mode_width (mode_info, crtc_info->rotation) > w)
-		w = crtc_info->x + mode_width (mode_info, crtc_info->rotation);
-	    if (crtc_info->y + mode_height (mode_info, crtc_info->rotation) > h)
-		h = crtc_info->y + mode_height (mode_info, crtc_info->rotation);
-	}
+	get_crtcs ();
+	get_outputs ();
+	set_positions ();
+	set_screen_size ();
 
 	/*
 	 * Pick crtcs for any changing outputs that don't have one
 	 */
-	for (xrandr_output = xrandr_outputs; xrandr_output; xrandr_output = xrandr_output->next)
+	for (output = outputs; output; output = output->next)
 	{
-	    if (xrandr_output->randr_mode && !xrandr_output->randr_crtc)
+	    if (output->changes && output->mode_info && !output->crtc_info)
 	    {
-		int oc, co;
-
-		output_info = xrandr_output->output_info;
-		c = 0;
-		for (oc = 0; oc < output_info->ncrtc; oc++)
-		{
-		    for (c = 0; c < res->ncrtc; c++)
-			if (res->crtcs[c] == output_info->crtcs[oc])
-			    break;
-		    crtc_info = crtc_infos[c];
-		    /*
-		     * Make sure all of the outputs currently connected
-		     * to this crtc are getting turned off
-		     */
-		    for (co = 0; co < crtc_info->noutput; co++)
-		    {
-			xrandr_output_t	    *cxo;
-
-			for (cxo = xrandr_outputs; cxo; cxo = cxo->next)
-			    if (crtc_info->outputs[co] == cxo->randr_output)
-				break;
-			/* not being reconfigured? */
-			if (!cxo)
-			    break;
-			/* Being reconfigured, but not disabled? */
-			if (cxo->randr_mode != None)
-			    break;
-		    }
-		    /* if we found all outputs on the disable list, we're good */
-		    if (co == crtc_info->noutput)
-			break;
-		}
-		if (oc < output_info->ncrtc)
-		{
-		    xrandr_output->crtc_info = crtc_info;
-		    xrandr_output->randr_crtc = res->crtcs[c];
-		    crtc_changing[c] = True;
-		}
-		else
-		{
-		    fprintf (stderr, "\"%s\": output has no available crtc\n",
-			     output_info->name);
-		    exit (1);
-		}
-	    }
-	}
-	
-	
-	XRRGetScreenSizeRange (dpy, RootWindow (dpy, screen),
-			       &minWidth, &minHeight,
-			       &maxWidth, &maxHeight);
-
-	if (w < minWidth) w = minWidth;
-	if (h < minHeight) h = minHeight;
-	if (w > maxWidth || h > maxHeight)
-	{
-	    fprintf (stderr, "%dx%d: desired screen size too large\n", w, h);
-	    exit (1);
-	}
-	
-	/*
-	 * Turn off any crtcs which are larger than the target size
-	 */
-	for (c = 0; c < res->ncrtc; c++)
-	{
-	    crtc_info = crtc_infos[c];
-	    if (!crtc_info->mode) continue;
-	    for (m = 0; m < res->nmode; m++)
-		if (res->modes[m].id == crtc_info->mode)
-		    break;
-	    if (m == res->nmode)
-	    {
-		fprintf (stderr, "crtc 0x%x: using unknown mode 0x%x\n",
-			 res->crtcs[c], crtc_info->mode);
-		exit (1);
-	    }
-	    mode_info = &res->modes[m];
-	    if (crtc_info->x + mode_width (mode_info, crtc_info->rotation) > w ||
-		crtc_info->y + mode_height (mode_info, crtc_info->rotation) > h)
-	    {
-		Status	s;
-		s = XRRSetCrtcConfig (dpy, res, res->crtcs[c], CurrentTime,
-				      0, 0, None, RR_Rotate_0, NULL, 0);
-		/* XXX we should bail and reset to the old state when this fails */
-		switch (s) {
-		case RRSetConfigSuccess:
-		    break;
-		case RRSetConfigFailed:
-		    fprintf (stderr, "Disable crtc %d failed\n", c);
-		    break;
-		case RRSetConfigInvalidConfigTime:
-		    fprintf (stderr, "Disable crtc %d invalid config time\n", c);
-		    break;
-		case RRSetConfigInvalidTime:
-		    fprintf (stderr, "Disable crtc %d invalid time\n", c);
-		    break;
-		}
+		output->crtc_info = find_crtc_for_output (output);
+		if (!output->crtc_info)
+		    fatal ("cannot find crtc for output %s\n", output->output.string);
 	    }
 	}
 
 	/*
-	 * Set the screen size
+	 * Assign outputs to crtcs
 	 */
-	if (w != DisplayWidth (dpy, screen) || h != DisplayHeight (dpy, screen) || dpi != 0.0)
-	{
-	    int	mmWidth, mmHeight;
-
-	    if (dpi <= 0)
-		dpi = (25.4 * DisplayHeight (dpy, screen)) / DisplayHeightMM(dpy, screen);
-
-	    mmWidth = (25.4 * DisplayWidth (dpy, screen)) / dpi;
-	    mmHeight = (25.4 * DisplayHeight (dpy, screen)) / dpi;
-
-	    if (verbose)
-		printf ("Set screen size to %dx%d (%dx%d mm)\n",
-			w, h, mmWidth, mmHeight);
-    	    XRRSetScreenSize (dpy, RootWindow (dpy, screen), w, h, mmWidth, mmHeight);
-	}
-
+	set_crtcs ();
+	
 	/*
-	 * Set crtcs
+	 * Compute physical screen size
 	 */
-
-	for (c = 0; c < res->ncrtc; c++)
+	if (fb_width_mm == 0 || fb_height_mm == 0)
 	{
-	    RRMode  mode = None;
-	    int	    x = 0;
-	    int	    y = 0;
-	    Rotation	rotation;
-	    Status	s;
-	    
-	    crtc_info = crtc_infos[c];
-	    if (!crtc_changing[c])
-		continue;
-	    noutput = 0;
-
-	    /*
-	     * Add existing and unchanging outputs
-	     */
-	    for (o = 0; o < res->noutput; o++)
-		if (!output_changing[o] && output_infos[o]->crtc == res->crtcs[c])
-		{
-		    outputs[noutput++] = res->outputs[o];
-		    mode = crtc_info->mode;
-		    x = crtc_info->x;
-		    y = crtc_info->y;
-		    rotation = crtc_info->rotation;
-		}
-	    /*
-	     * Add changing outputs
-	     */
-	    for (xrandr_output = xrandr_outputs; xrandr_output; xrandr_output = xrandr_output->next)
+	    if (fb_width != DisplayWidth (dpy, screen) ||
+		fb_height != DisplayHeight (dpy, screen) || dpi != 0.0)
 	    {
-		output_info = xrandr_output->output_info;
-		if (xrandr_output->randr_crtc == res->crtcs[c])
-		{
-		    outputs[noutput++] = xrandr_output->randr_output;
-		    mode = xrandr_output->randr_mode;
-		    x = xrandr_output->x;
-		    y = xrandr_output->y;
-		    rotation = xrandr_output->rotation;
-		}
-	    }
-	    if (noutput == 0)
-		rotation = RR_Rotate_90;
-	    
-	    if (verbose) {
-		if (mode)
-		{
-		    printf ("Setting crtc %d:\n", c);
-		    printf ("\tPosition: %dx%d\n", x, y);
-		    for (m = 0; m < res->nmode; m++)
-			if (res->modes[m].id == mode)
-			{
-			    printf ("\tMode: %s\n", res->modes[m].name);
-			    break;
-			}
-		    printf ("\tOutputs:");
-		    for (o = 0; o < res->noutput; o++)
-		    {
-			int	co;
+		if (dpi <= 0)
+		    dpi = (25.4 * DisplayHeight (dpy, screen)) / DisplayHeightMM(dpy, screen);
 
-			for (co = 0; co < noutput; co++)
-			    if (res->outputs[o] == outputs[co])
-			    {
-				printf (" \"%s\"", output_infos[o]->name);
-				break;
-			    }
-		    }
-		    printf ("\n");
-		}
-		else
-		    printf ("Disabling crtc %d\n", c);
+		fb_width_mm = (25.4 * fb_width) / dpi;
+		fb_height_mm = (25.4 * fb_height) / dpi;
 	    }
-	    s = XRRSetCrtcConfig (dpy, res, res->crtcs[c], CurrentTime,
-				  x, y, mode, rotation, outputs, noutput);
-	    /* XXX we should bail and reset to the old state when this fails */
-	    switch (s) {
-	    case RRSetConfigSuccess:
-		break;
-	    case RRSetConfigFailed:
-		fprintf (stderr, "Configure crtc %d failed\n", c);
-		break;
-	    case RRSetConfigInvalidConfigTime:
-		fprintf (stderr, "Configure crtc %d invalid config time\n", c);
-		break;
-	    case RRSetConfigInvalidTime:
-		fprintf (stderr, "Configure crtc %d invalid time\n", c);
-		break;
+	    else
+	    {
+		fb_width_mm = DisplayWidthMM (dpy, screen);
+		fb_height_mm = DisplayHeightMM (dpy, screen);
 	    }
 	}
+	
+	/*
+	 * Now apply all of the changes
+	 */
+	apply ();
+	
 	XSync (dpy, False);
 	exit (0);
     }
@@ -1207,21 +1718,11 @@ main (int argc, char **argv)
 
     rotation = 1 << rot ;
     if (query) {
-	for (i = 0; i < 4; i ++) {
-	    if ((current_rotation >> i) & 1) 
-		printf("Current rotation - %s\n", direction[i]);
-	}
+    	printf("Current rotation - %s\n",
+	       rotation_name (current_rotation));
 
-	printf("Current reflection - ");
-	if (current_rotation & (RR_Reflect_X|RR_Reflect_Y))
-	{
-	    if (current_rotation & RR_Reflect_X) printf ("X Axis ");
-	    if (current_rotation & RR_Reflect_Y) printf ("Y Axis");
-	}
-	else
-	    printf ("none");
-	printf ("\n");
-
+	printf("Current reflection - %s\n",
+	       reflection_name (current_rotation, True));
 
 	printf ("Rotations possible - ");
 	for (i = 0; i < 4; i ++) {
@@ -1261,20 +1762,20 @@ main (int argc, char **argv)
     /* we should test configureNotify on the root window */
     XSelectInput (dpy, root, StructureNotifyMask);
 
-    if (setit) XRRSelectInput (dpy, root,
+    if (setit && !dryrun) XRRSelectInput (dpy, root,
 			       RRScreenChangeNotifyMask);
-    if (setit) status = XRRSetScreenConfigAndRate (dpy, sc,
+    if (setit && !dryrun) status = XRRSetScreenConfigAndRate (dpy, sc,
 						   DefaultRootWindow (dpy), 
 						   (SizeID) size, (Rotation) (rotation | reflection), rate, CurrentTime);
 
     XRRQueryExtension(dpy, &event_base, &error_base);
 
-    if (setit && status == RRSetConfigFailed) {
+    if (setit && !dryrun && status == RRSetConfigFailed) {
 	printf ("Failed to change the screen configuration!\n");
 	ret = 1;
     }
 
-    if (verbose && setit) {
+    if (verbose && setit && !dryrun) {
 	if (status == RRSetConfigSuccess)
 	{
 	    while (1) {

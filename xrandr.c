@@ -84,7 +84,7 @@ usage(void)
 #if HAS_RANDR_1_2
     fprintf(stderr, "  --fb <width>x<height>\n");
     fprintf(stderr, "  --fbmm <width>x<height>\n");
-    fprintf(stderr, "  --dpi <dpi>\n");
+    fprintf(stderr, "  --dpi <dpi>/<output>\n");
 #if 0
     fprintf(stderr, "  --clone\n");
     fprintf(stderr, "  --extend\n");
@@ -245,7 +245,9 @@ static XRRScreenResources  *res;
 static int	fb_width = 0, fb_height = 0;
 static int	fb_width_mm = 0, fb_height_mm = 0;
 static double	dpi = 0;
+static char	*dpi_output = NULL;
 static Bool	dryrun = False;
+static int	minWidth, maxWidth, minHeight, maxHeight;
 
 static int
 mode_height (XRRModeInfo *mode_info, Rotation rotation)
@@ -370,6 +372,25 @@ find_output (name_t *name)
     return output;
 }
 
+static output_t *
+find_output_by_xid (RROutput output)
+{
+    name_t  output_name;
+
+    init_name (&output_name);
+    set_name_xid (&output_name, output);
+    return find_output (&output_name);
+}
+
+static output_t *
+find_output_by_name (char *name)
+{
+    name_t  output_name;
+
+    init_name (&output_name);
+    set_name_string (&output_name, name);
+    return find_output (&output_name);
+}
 
 static crtc_t *
 find_crtc (name_t *name)
@@ -548,13 +569,18 @@ output_can_use_rotation (output_t *output, Rotation rotation)
 static void
 set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 {
+    /* sanity check output info */
+    if (output_info->connection != RR_Disconnected && !output_info->nmode)
+	fatal ("Output %s is not disconnected but has no modes\n",
+	       output_info->name);
+    
     /* set output name and info */
     if (!(output->output.kind & name_xid))
 	set_name_xid (&output->output, xid);
     if (!(output->output.kind & name_string))
 	set_name_string (&output->output, output_info->name);
     output->output_info = output_info;
-
+    
     /* set crtc name and info */
     if (!(output->changes & changes_crtc))
 	set_name_xid (&output->crtc, output_info->crtc);
@@ -677,8 +703,6 @@ crtc_add_output (crtc_t *crtc, output_t *output)
     }
     if (!crtc->outputs) fatal ("out of memory");
     crtc->outputs[crtc->noutput++] = output;
-    if (output->changes)
-	crtc->changing = True;
 }
 
 static void
@@ -697,6 +721,10 @@ static Status
 crtc_disable (crtc_t *crtc)
 {
     XRRCrtcInfo	*crtc_info = crtc->crtc_info;
+    
+    if (verbose)
+    	printf ("crtc %d: disable\n", crtc->crtc.index);
+	
     if (dryrun)
 	return RRSetConfigSuccess;
     return XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
@@ -707,6 +735,10 @@ static Status
 crtc_revert (crtc_t *crtc)
 {
     XRRCrtcInfo	*crtc_info = crtc->crtc_info;
+    
+    if (verbose)
+    	printf ("crtc %d: revert\n", crtc->crtc.index);
+	
     if (dryrun)
 	return RRSetConfigSuccess;
     return XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
@@ -753,6 +785,9 @@ crtc_apply (crtc_t *crtc)
 static void
 screen_revert (void)
 {
+    if (verbose)
+	printf ("screen %d: revert\n");
+
     if (dryrun)
 	return;
     XRRSetScreenSize (dpy, root,
@@ -769,10 +804,12 @@ screen_apply (void)
 	fb_height == DisplayHeight (dpy, screen) &&
 	fb_width_mm == DisplayWidthMM (dpy, screen) &&
 	fb_height_mm == DisplayHeightMM (dpy, screen))
+    {
 	return;
+    }
     if (verbose)
-	printf ("screen %d: %dx%d (%dx%d mm)\n", screen,
-		fb_width, fb_height, fb_width_mm, fb_height_mm);
+	printf ("screen %d: %dx%d %dx%d mm %6.2fdpi\n", screen,
+		fb_width, fb_height, fb_width_mm, fb_height_mm, dpi);
     if (dryrun)
 	return;
     XRRSetScreenSize (dpy, root, fb_width, fb_height,
@@ -805,8 +842,6 @@ panic (Status s, crtc_t *crtc)
     int	    c = crtc->crtc.index;
     char    *message;
     
-    revert ();
-    
     switch (s) {
     case RRSetConfigSuccess:		message = "succeeded";		    break;
     case BadAlloc:			message = "out of memory";	    break;
@@ -816,7 +851,9 @@ panic (Status s, crtc_t *crtc)
     default:				message = "unknown failure";	    break;
     }
     
-    fatal ("Configure crtc %d %s\n", c, message);
+    fprintf (stderr, "%s: Configure crtc %d %s\n", program_name, c, message);
+    revert ();
+    exit (1);
 }
 
 void
@@ -861,11 +898,6 @@ apply (void)
 		continue;
 	    crtc->changing = True;
 	}
-	else
-	{
-	    if (verbose)
-		printf ("crtc %d: disable\n", c);
-	}
 	s = crtc_disable (crtc);
 	if (s != RRSetConfigSuccess)
 	    panic (s, crtc);
@@ -890,6 +922,9 @@ apply (void)
     }
 }
 
+/*
+ * Use current output state to complete the output list
+ */
 void
 get_outputs (void)
 {
@@ -909,8 +944,34 @@ get_outputs (void)
 	{
 	    output = add_output ();
 	    set_name_all (&output->output, &output_name);
+	    /*
+	     * When global --automatic mode is set, turn on connected but off
+	     * outputs, turn off disconnected but on outputs
+	     */
+	    if (automatic)
+	    {
+		switch (output_info->connection) {
+		case RR_Connected:
+		    if (!output_info->crtc) {
+			output->changes |= changes_automatic;
+			output->automatic = True;
+		    }
+		    break;
+		case RR_Disconnected:
+		    if (output_info->crtc)
+		    {
+			output->changes |= changes_automatic;
+			output->automatic = True;
+		    }
+		    break;
+		}
+	    }
 	}
 
+	/*
+	 * Automatic mode -- track connection state and enable/disable outputs
+	 * as necessary
+	 */
 	if (output->automatic)
 	{
 	    switch (output_info->connection) {
@@ -942,41 +1003,29 @@ void
 mark_changing_crtcs (void)
 {
     int	c;
-    output_t	*output;
 
-    /*
-     * Mark all crtcs with changing outputs as changing
-     */
     for (c = 0; c < num_crtcs; c++)
     {
 	crtc_t	    *crtc = &crtcs[c];
 	int	    o;
+	output_t    *output;
 
+	/* walk old output list (to catch disables) */
 	for (o = 0; o < crtc->crtc_info->noutput; o++)
 	{
-	    name_t	output_name;
-
-	    init_name (&output_name);
-	    set_name_xid (&output_name, crtc->crtc_info->outputs[o]);
-	    output = find_output (&output_name);
-	    if (!output) fatal ("cannot find output 0x%x\n", output_name.xid);
+	    output = find_output_by_xid (crtc->crtc_info->outputs[o]);
+	    if (!output) fatal ("cannot find output 0x%x\n",
+				crtc->crtc_info->outputs[o]);
 	    if (output->changes)
 		crtc->changing = True;
 	}
-    }
-    /*
-     * Mark all crtcs gaining outputs as changing
-     */
-    for (output = outputs; output; output = output->next)
-    {
-	crtc_t	*crtc;
-	
-	if (output->changes == changes_none) continue;
-	if (!(output->crtc.kind & name_xid)) continue;
-	if (output->crtc.xid == None) continue;
-	crtc = find_crtc_by_xid (output->crtc.xid);
-	if (!crtc) fatal ("cannot find crtc 0x%x\n", output->crtc.xid);
-	crtc->changing = True;
+	/* walk new output list */
+	for (o = 0; o < crtc->noutput; o++)
+	{
+	    output = crtc->outputs[o];
+	    if (output->changes)
+		crtc->changing = True;
+	}
     }
 }
 
@@ -1116,9 +1165,7 @@ set_screen_size (void)
 {
     output_t	*output;
     Bool	fb_specified = fb_width != 0 && fb_height != 0;
-    int		minWidth, maxWidth, minHeight, maxHeight;
     
-    XRRGetScreenSizeRange (dpy, root, &minWidth, &minHeight, &maxWidth, &maxHeight);
     for (output = outputs; output; output = output->next)
     {
 	XRRModeInfo *mode_info = output->mode_info;
@@ -1390,7 +1437,10 @@ main (int argc, char **argv)
 	if (!strcmp ("--dpi", argv[i])) {
 	    if (++i>=argc) usage ();
 	    if (sscanf (argv[i], "%lf", &dpi) != 1)
-		usage ();
+	    {
+		dpi = 0.0;
+		dpi_output = argv[i];
+	    }
 	    setit_1_2 = True;
 	    continue;
 	}
@@ -1465,6 +1515,9 @@ main (int argc, char **argv)
 	    fprintf (stderr, "Server RandR version before 1.2\n");
 	    exit (1);
 	}
+	XRRGetScreenSizeRange (dpy, root, &minWidth, &minHeight,
+			       &maxWidth, &maxHeight);
+	
 	res = XRRGetScreenResources (dpy, root);
 	if (!res) fatal ("could not get screen resources");
 
@@ -1491,6 +1544,42 @@ main (int argc, char **argv)
 	 */
 	set_crtcs ();
 	
+	/*
+	 * Mark changing crtcs
+	 */
+	mark_changing_crtcs ();
+
+	/*
+	 * If an output was specified to track dpi, use it
+	 */
+	if (dpi_output)
+	{
+	    output_t	*output = find_output_by_name (dpi_output);
+	    XRROutputInfo	*output_info;
+	    XRRModeInfo	*mode_info;
+	    if (!output)
+		fatal ("Cannot find output %s\n", dpi_output);
+	    output_info = output->output_info;
+	    mode_info = output->mode_info;
+	    if (output_info && mode_info && output_info->mm_height)
+	    {
+		/*
+		 * When this output covers the whole screen, just use
+		 * the known physical size
+		 */
+		if (fb_width == mode_info->width &&
+		    fb_height == mode_info->height)
+		{
+		    fb_width_mm = output_info->mm_width;
+		    fb_height_mm = output_info->mm_height;
+		}
+		else
+		{
+		    dpi = (25.4 * mode_info->height) / output_info->mm_height;
+		}
+	    }
+	}
+
 	/*
 	 * Compute physical screen size
 	 */

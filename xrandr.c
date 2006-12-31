@@ -135,12 +135,12 @@ rotation_name (Rotation rotation)
 }
 
 static char *
-reflection_name (Rotation rotation, Bool verbose)
+reflection_name (Rotation rotation)
 {
     rotation &= (RR_Reflect_X|RR_Reflect_Y);
     switch (rotation) {
     case 0:
-	return verbose ? "none" : "";
+	return "none";
     case RR_Reflect_X:
 	return "X axis";
     case RR_Reflect_Y:
@@ -720,10 +720,10 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 	    output->rotation = RR_Rotate_0;
     }
     if (!output_can_use_rotation (output, output->rotation))
-	fatal ("output %s cannot use rotation %s %s\n",
+	fatal ("output %s cannot use rotation \"%s\" reflection \"%s\"\n",
 	       output->output.string,
 	       rotation_name (output->rotation),
-	       reflection_name (output->rotation, False));
+	       reflection_name (output->rotation));
 }
     
 static void
@@ -1728,13 +1728,27 @@ main (int argc, char **argv)
 	for (output = outputs; output; output = output->next)
 	{
 	    XRROutputInfo   *output_info = output->output_info;
+	    XRRModeInfo	    *mode = output->mode_info;
 	    Atom	    *props;
 	    int		    j, k, nprop;
 	    Bool	    *mode_shown;
 
-	    printf ("%s %s %dmm x %dmm\n",
-		    output_info->name,
-		    connection[output_info->connection],
+	    printf ("%s %s", output_info->name, connection[output_info->connection]);
+	    if (mode)
+	    {
+		printf (" %dx%d+%d+%d",
+			mode_width (mode, output->rotation),
+			mode_height (mode, output->rotation),
+			output->x, output->y);
+		if (output->rotation != RR_Rotate_0 || verbose)
+		{
+		    printf (" %s", 
+			    rotation_name (output->rotation));
+		    if (output->rotation & (RR_Reflect_X|RR_Reflect_Y))
+			printf (" %s", reflection_name (output->rotation));
+		}
+	    }
+	    printf (" %dmm x %dmm\n",
 		    output_info->mm_width, output_info->mm_height);
 
 	    if (verbose)
@@ -1926,7 +1940,7 @@ main (int argc, char **argv)
 	       rotation_name (current_rotation));
 
 	printf("Current reflection - %s\n",
-	       reflection_name (current_rotation, True));
+	       reflection_name (current_rotation));
 
 	printf ("Rotations possible - ");
 	for (i = 0; i < 4; i ++) {

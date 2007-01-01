@@ -1318,7 +1318,7 @@ main (int argc, char **argv)
     int 		i, j;
     SizeID	current_size;
     short	current_rate;
-    double    	rate = -1;
+    float    	rate = -1;
     int		size = -1;
     int		dirind = 0;
     Bool	setit = False;
@@ -1377,7 +1377,7 @@ main (int argc, char **argv)
 	    !strcmp ("--refresh", argv[i]))
 	{
 	    if (++i>=argc) usage ();
-	    if (sscanf (argv[i], "%lf", &rate) != 1)
+	    if (sscanf (argv[i], "%f", &rate) != 1)
 		usage ();
 	    setit = True;
 #if HAS_RANDR_1_2
@@ -1544,7 +1544,7 @@ main (int argc, char **argv)
 	}
 	if (!strcmp ("--dpi", argv[i])) {
 	    if (++i>=argc) usage ();
-	    if (sscanf (argv[i], "%lf", &dpi) != 1)
+	    if (sscanf (argv[i], "%f", &dpi) != 1)
 	    {
 		dpi = 0.0;
 		dpi_output = argv[i];

@@ -673,8 +673,17 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 	    set_name_xid (&output->mode, output->crtc_info->crtc_info->mode);
 	else
 	    set_name_xid (&output->mode, None);
+	if (output->mode.xid)
+	{
+	    output->mode_info = find_mode_by_xid (output->mode.xid);
+	    if (!output->mode_info)
+		fatal ("server did not report mode 0x%x for output %s\n",
+		       output->mode.xid, output->output.string);
+	}
+	else
+	    output->mode_info = NULL;
     }
-    if (output->mode.kind == name_xid && output->mode.xid == None)
+    else if (output->mode.kind == name_xid && output->mode.xid == None)
 	output->mode_info = NULL;
     else
     {

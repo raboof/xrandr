@@ -1778,18 +1778,24 @@ main (int argc, char **argv)
 	    }
 	    if (verbose || properties)
 	    {
-		props = XRRListOutputProperties (dpy, output->output.xid, &nprop);
+		props = XRRListOutputProperties (dpy, output->output.xid,
+						 &nprop);
 		for (j = 0; j < nprop; j++) {
 		    unsigned char *prop;
 		    int actual_format;
 		    unsigned long nitems, bytes_after;
 		    Atom actual_type;
+		    XRRPropertyInfo *propinfo;
     
 		    XRRGetOutputProperty (dpy, output->output.xid, props[j],
-					  0, 100, False, False, AnyPropertyType,
+					  0, 100, False, False,
+					  AnyPropertyType,
 					  &actual_type, &actual_format,
 					  &nitems, &bytes_after, &prop);
-    
+
+		    propinfo = XRRQueryOutputProperty(dpy, output->output.xid,
+						      props[j]);
+
 		    if (actual_type == XA_INTEGER && actual_format == 8) {
 			int k;
     
@@ -1801,12 +1807,31 @@ main (int argc, char **argv)
 			    if (k % 16 == 15)
 				printf("\n");
 			}
+		    } else if (actual_type == XA_INTEGER &&
+			       actual_format == 32)
+		    {
+			printf("\t%s: %d (0x%08x)",
+			       XGetAtomName (dpy, props[j]),
+			       *(INT32 *)prop);
+
+ 			if (propinfo->range && propinfo->num_values > 0) {
+			    printf(" range%s: ",
+				   (propinfo->num_values == 2) ? "" : "s");
+
+			    for (k = 0; k < propinfo->num_values / 2; k++)
+				printf(" (%d,%d)", propinfo->values[k * 2],
+				       propinfo->values[k * 2 + 1]);
+			}
+
+			printf("\n");
 		    } else if (actual_format == 8) {
 			printf ("\t\t%s: %s%s\n", XGetAtomName (dpy, props[j]),
 				prop, bytes_after ? "..." : "");
 		    } else {
 			printf ("\t\t%s: ????\n", XGetAtomName (dpy, props[j]));
 		    }
+
+		    free(propinfo);
 		}
 	    }
 	    

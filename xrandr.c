@@ -56,6 +56,13 @@ static char *direction[5] = {
     "right",
     "\n"};
 
+static char *reflections[5] = {
+    "normal", 
+    "x", 
+    "y", 
+    "xy",
+    "\n"};
+
 /* subpixel order */
 static char *order[6] = {
     "unknown",
@@ -98,6 +105,8 @@ usage(void)
     fprintf(stderr, "      --rate <rate> or --refresh <rate>\n");
     fprintf(stderr, "      --preferred\n");
     fprintf(stderr, "      --pos <x>x<y>\n");
+    fprintf(stderr, "      --rotate normal,inverted,left,right\n");
+    fprintf(stderr, "      --reflect normal,x,y,xy\n");
     fprintf(stderr, "      --auto\n");
     fprintf(stderr, "      --left-of <output>\n");
     fprintf(stderr, "      --right-of <output>\n");
@@ -128,6 +137,8 @@ rotation_name (Rotation rotation)
 {
     int	i;
 
+    if ((rotation & 0xf) == 0)
+	return "normal";
     for (i = 0; i < 4; i++)
 	if (rotation & (1 << i))
 	    return direction[i];
@@ -166,8 +177,9 @@ typedef enum _changes {
     changes_relation = (1 << 2),
     changes_position = (1 << 3),
     changes_rotation = (1 << 4),
-    changes_automatic = (1 << 5),
-    changes_refresh = (1 << 6),
+    changes_reflection = (1 << 5),
+    changes_automatic = (1 << 6),
+    changes_refresh = (1 << 7),
 } changes_t;
 
 typedef enum _name_kind {
@@ -605,9 +617,35 @@ crtc_can_use_rotation (crtc_t *crtc, Rotation rotation)
     Rotation	rotations = crtc->crtc_info->rotations;
     Rotation	dir = rotation & (RR_Rotate_0|RR_Rotate_90|RR_Rotate_180|RR_Rotate_270);
     Rotation	reflect = rotation & (RR_Reflect_X|RR_Reflect_Y);
-    if ((rotations & dir) && (rotations & reflect == reflect))
+    if (((rotations & dir) != 0) && ((rotations & reflect) == reflect))
 	return True;
     return False;
+}
+
+/*
+ * Report only rotations that are supported by all crtcs
+ */
+static Rotation
+output_rotations (output_t *output)
+{
+    Bool	    found = False;
+    Rotation	    rotation = RR_Rotate_0;
+    XRROutputInfo   *output_info = output->output_info;
+    int		    c;
+    
+    for (c = 0; c < output_info->ncrtc; c++)
+    {
+	crtc_t	*crtc = find_crtc_by_xid (output_info->crtcs[c]);
+	if (crtc)
+	{
+	    if (!found) {
+		rotation = crtc->crtc_info->rotations;
+		found = True;
+	    } else
+		rotation &= crtc->crtc_info->rotations;
+	}
+    }
+    
 }
 
 static Bool
@@ -723,10 +761,18 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
     /* set rotation */
     if (!(output->changes & changes_rotation))
     {
+	output->rotation &= ~0xf;
 	if (output->crtc_info)
-	    output->rotation = output->crtc_info->crtc_info->rotation;
+	    output->rotation |= (output->crtc_info->crtc_info->rotation & 0xf);
 	else
 	    output->rotation = RR_Rotate_0;
+    }
+    if (!(output->changes & changes_reflection))
+    {
+	output->rotation &= ~(RR_Reflect_X|RR_Reflect_Y);
+	if (output->crtc_info)
+	    output->rotation |= (output->crtc_info->crtc_info->rotation &
+				 (RR_Reflect_X|RR_Reflect_Y));
     }
     if (!output_can_use_rotation (output, output->rotation))
 	fatal ("output %s cannot use rotation \"%s\" reflection \"%s\"\n",
@@ -1484,7 +1530,7 @@ main (int argc, char **argv)
 	    output->changes |= changes_position;
 	    continue;
 	}
-	if (!strcmp ("--rotation", argv[i])) {
+	if (!strcmp ("--rotation", argv[i]) || !strcmp ("--rotate", argv[i])) {
 	    if (++i>=argc) usage ();
 	    if (!output) usage();
 	    for (dirind = 0; dirind < 4; dirind++) {
@@ -1492,8 +1538,22 @@ main (int argc, char **argv)
 	    }
 	    if (dirind == 4)
 		usage ();
-	    output->rotation = 1 << dirind;
+	    output->rotation &= ~0xf;
+	    output->rotation |= 1 << dirind;
 	    output->changes |= changes_rotation;
+	    continue;
+	}
+	if (!strcmp ("--reflect", argv[i]) || !strcmp ("--reflection", argv[i])) {
+	    if (++i>=argc) usage ();
+	    if (!output) usage();
+	    for (dirind = 0; dirind < 4; dirind++) {
+		if (strcmp (reflections[dirind], argv[i]) == 0) break;
+	    }
+	    if (dirind == 4)
+		usage ();
+	    output->rotation &= ~(RR_Reflect_X|RR_Reflect_Y);
+	    output->rotation |= dirind * RR_Reflect_X;
+	    output->changes |= changes_reflection;
 	    continue;
 	}
 	if (!strcmp ("--left-of", argv[i])) {
@@ -1741,6 +1801,7 @@ main (int argc, char **argv)
 	    Atom	    *props;
 	    int		    j, k, nprop;
 	    Bool	    *mode_shown;
+	    Rotation	    rotations = output_rotations (output);
 
 	    printf ("%s %s", output_info->name, connection[output_info->connection]);
 	    if (mode)
@@ -1757,8 +1818,36 @@ main (int argc, char **argv)
 			printf (" %s", reflection_name (output->rotation));
 		}
 	    }
-	    printf (" %dmm x %dmm\n",
-		    output_info->mm_width, output_info->mm_height);
+	    if (rotations != RR_Rotate_0 || verbose)
+	    {
+		Bool    first = True;
+		printf (" (");
+		for (i = 0; i < 4; i ++) {
+		    if ((rotations >> i) & 1) {
+			if (!first) printf (" "); first = False;
+			printf("%s", direction[i]);
+			first = False;
+		    }
+		}
+		if (rotations & RR_Reflect_X)
+		{
+		    if (!first) printf (" "); first = False;
+		    printf ("x axis");
+		}
+		if (rotations & RR_Reflect_Y)
+		{
+		    if (!first) printf (" "); first = False;
+		    printf ("y axis");
+		}
+		printf (")");
+	    }
+
+	    if (mode)
+	    {
+		printf (" %dmm x %dmm",
+			output_info->mm_width, output_info->mm_height);
+	    }
+	    printf ("\n");
 
 	    if (verbose)
 	    {

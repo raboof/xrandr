@@ -100,19 +100,19 @@ usage(void)
     fprintf(stderr, "  --extend\n");
 #endif
     fprintf(stderr, "  --output <output>\n");
-    fprintf(stderr, "      --crtc <crtc>\n");
+    fprintf(stderr, "      --auto\n");
     fprintf(stderr, "      --mode <mode>\n");
-    fprintf(stderr, "      --rate <rate> or --refresh <rate>\n");
     fprintf(stderr, "      --preferred\n");
     fprintf(stderr, "      --pos <x>x<y>\n");
-    fprintf(stderr, "      --rotate normal,inverted,left,right\n");
+    fprintf(stderr, "      --rate <rate> or --refresh <rate>\n");
     fprintf(stderr, "      --reflect normal,x,y,xy\n");
-    fprintf(stderr, "      --auto\n");
+    fprintf(stderr, "      --rotate normal,inverted,left,right\n");
     fprintf(stderr, "      --left-of <output>\n");
     fprintf(stderr, "      --right-of <output>\n");
     fprintf(stderr, "      --above <output>\n");
     fprintf(stderr, "      --below <output>\n");
     fprintf(stderr, "      --off\n");
+    fprintf(stderr, "      --crtc <crtc>\n");
 #endif
 
     exit(1);

@@ -1,3 +1,4 @@
+*.o
 .deps
 Makefile
 Makefile.in
@@ -16,4 +17,5 @@ install-sh
 missing
 stamp-h1
 xrandr
+xrandr12
 xrandr.1

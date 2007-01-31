@@ -645,7 +645,7 @@ output_rotations (output_t *output)
 		rotation &= crtc->crtc_info->rotations;
 	}
     }
-    
+    return rotation;
 }
 
 static Bool

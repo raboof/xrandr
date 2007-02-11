@@ -1864,6 +1864,14 @@ main (int argc, char **argv)
 		printf ("\n");
 		if (output->crtc_info)
 		    printf ("\tCRTC:       %d\n", output->crtc_info->crtc.index);
+		printf ("\tCRTCs:     ");
+		for (j = 0; j < output_info->ncrtc; j++)
+		{
+		    crtc_t	*crtc = find_crtc_by_xid (output_info->crtcs[j]);
+		    if (crtc)
+			printf (" %d", crtc->crtc.index);
+		}
+		printf ("\n");
 	    }
 	    if (verbose || properties)
 	    {

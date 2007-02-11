@@ -455,7 +455,7 @@ find_crtc (name_t *name)
 	    break;
 	if ((common & name_string) && !strcmp (name->string, crtc->crtc.string))
 	    break;
-	if ((common & name_index) & name->index == crtc->crtc.index)
+	if ((common & name_index) && name->index == crtc->crtc.index)
 	    break;
 	crtc = NULL;
     }

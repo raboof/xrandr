@@ -32,7 +32,7 @@ AC_PROG_CC
 AC_PROG_INSTALL
 
 # Checks for pkg-config packages
-PKG_CHECK_MODULES(XRANDR, xrandr >= 1.2.0.0 xrender x11)
+PKG_CHECK_MODULES(XRANDR, xrandr >= 1.2.0 xrender x11)
 AC_SUBST(XRANDR_CFLAGS)
 AC_SUBST(XRANDR_LIBS)
 

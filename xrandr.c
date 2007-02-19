@@ -1182,21 +1182,33 @@ find_crtc_for_output (output_t *output)
 
     for (c = 0; c < output->output_info->ncrtc; c++)
     {
-	crtc_t	*crtc;
-	int	l, o;
+	crtc_t	    *crtc;
+	int	    l, o;
+	output_t    *other;
 
 	crtc = find_crtc_by_xid (output->output_info->crtcs[c]);
 	if (!crtc) fatal ("cannot find crtc 0x%x\n", output->output_info->crtcs[c]);
 
-	/* make sure all of the outputs currently connected can share */
-	for (o = 0; o < crtc->noutput; o++)
+	for (other = outputs; other; other = other->next)
 	{
+	    if (other == output)
+		continue;
+
+	    if (other->mode_info == NULL)
+		continue;
+
+	    if (other->crtc_info != crtc)
+		continue;
+	    
+	    /* see if the output connected to the crtc can clone to this output */
 	    for (l = 0; l < output->output_info->nclone; l++)
-		if (output->output_info->clones[l] == crtc->outputs[o]->output.xid)
+		if (output->output_info->clones[l] == other->output.xid)
 		    break;
-	    if (l != output->output_info->nclone) break;
+	    /* not on the list, can't clone */
+	    if (l == output->output_info->nclone) break;
 	}
-	if (o != crtc->noutput) continue;
+	if (other) continue;
+	
 
 	if (crtc->noutput)
 	{
@@ -1654,7 +1666,12 @@ main (int argc, char **argv)
 #endif
 	usage();
     }
-    if (verbose) query = True;
+    if (verbose) 
+    {
+	query = True;
+	if (setit && !setit_1_2)
+	    query_1 = True;
+    }
 
     dpy = XOpenDisplay (display_name);
 
@@ -2124,10 +2141,11 @@ main (int argc, char **argv)
 	ret = 1;
     }
 
-    if (verbose && setit && !dryrun) {
+    if (verbose && setit && !dryrun && size != current_size) {
 	if (status == RRSetConfigSuccess)
 	{
-	    while (1) {
+	    Bool    seen_screen = False;
+	    while (!seen_screen) {
 		int spo;
 		XNextEvent(dpy, (XEvent *) &event);
 
@@ -2158,6 +2176,7 @@ main (int argc, char **argv)
 		    if ((spo < 0) || (spo > 5))
 			printf ("Unknown subpixel order, value = %d\n", spo);
 		    else printf ("new Subpixel rendering model is %s\n", order[spo]);
+		    seen_screen = True;
 		    break;
 		default:
 		    if (event.type != ConfigureNotify) 

@@ -114,6 +114,11 @@ usage(void)
     fprintf(stderr, "      --same-as <output>\n");
     fprintf(stderr, "      --off\n");
     fprintf(stderr, "      --crtc <crtc>\n");
+    fprintf(stderr, "  --newmode <name> <clock MHz>\n");
+    fprintf(stderr, "            <hdisp> <hsync-start> <hsync-end> <htotal>\n");
+    fprintf(stderr, "            <vdisp> <vsync-start> <vsync-end> <vtotal>\n");
+    fprintf(stderr, "            [+HSync] [-HSync] [+Vsync] [-VSync]\n");
+    fprintf(stderr, "  --rmmode <name>\n");
 #endif
 
     exit(1);
@@ -200,6 +205,7 @@ typedef struct {
 
 typedef struct _crtc crtc_t;
 typedef struct _output	output_t;
+typedef struct _umode	umode_t;
 
 struct _crtc {
     name_t	    crtc;
@@ -238,6 +244,13 @@ struct _output {
     Bool    	    automatic;
 };
 
+struct _umode {
+    struct _umode   *next;
+    
+    Bool	    new;
+    XRRModeInfo	    mode;
+};
+
 static char *connection[3] = {
     "connected",
     "disconnected",
@@ -259,6 +272,7 @@ static char *connection[3] = {
 static output_t	*outputs = NULL;
 static output_t	**outputs_tail = &outputs;
 static crtc_t	*crtcs;
+static umode_t	*umodes;
 static int	num_crtcs;
 static XRRScreenResources  *res;
 static int	fb_width = 0, fb_height = 0;
@@ -514,6 +528,15 @@ find_mode_by_xid (RRMode mode)
 
     init_name (&mode_name);
     set_name_xid (&mode_name, mode);
+    return find_mode (&mode_name, 0);
+}
+
+static XRRModeInfo *
+find_mode_by_name (char *name)
+{
+    name_t  mode_name;
+    init_name (&mode_name);
+    set_name_string (&mode_name, name);
     return find_mode (&mode_name, 0);
 }
 
@@ -1405,6 +1428,7 @@ main (int argc, char **argv)
     policy_t	policy = clone;
     Bool    	setit_1_2 = False;
     Bool    	query_1_2 = False;
+    Bool	modeit = False;
     Bool	query_1 = False;
     int		major, minor;
 #endif
@@ -1675,6 +1699,75 @@ main (int argc, char **argv)
 	    query_1 = True;
 	    continue;
 	}
+	if (!strcmp ("--newmode", argv[i]))
+	{
+	    umode_t  *m = malloc (sizeof (umode_t));
+	    float   clock;
+	    
+	    ++i;
+	    if (i + 9 >= argc) usage ();
+	    m->mode.name = argv[i];
+	    m->mode.nameLength = strlen (argv[i]);
+	    i++;
+	    if (sscanf (argv[i++], "%f", &clock) != 1)
+		usage ();
+	    m->mode.dotClock = clock * 1e6;
+
+	    if (sscanf (argv[i++], "%d", &m->mode.width) != 1) usage();
+	    if (sscanf (argv[i++], "%d", &m->mode.hSyncStart) != 1) usage();
+	    if (sscanf (argv[i++], "%d", &m->mode.hSyncEnd) != 1) usage();
+	    if (sscanf (argv[i++], "%d", &m->mode.hTotal) != 1) usage();
+	    if (sscanf (argv[i++], "%d", &m->mode.height) != 1) usage();
+	    if (sscanf (argv[i++], "%d", &m->mode.vSyncStart) != 1) usage();
+	    if (sscanf (argv[i++], "%d", &m->mode.vSyncEnd) != 1) usage();
+	    if (sscanf (argv[i++], "%d", &m->mode.vTotal) != 1) usage();
+	    m->mode.modeFlags = 0;
+	    while (i < argc) {
+		static const struct {
+		    char	    *string;
+		    unsigned long   flag;
+		} mode_flags[] = {
+		    "+HSync", RR_HSyncPositive,
+		    "-HSync", RR_HSyncNegative,
+		    "+VSync", RR_VSyncPositive,
+		    "-VSync", RR_VSyncNegative,
+		    "Interlace", RR_Interlace,
+		    "DoubleScan", RR_DoubleScan,
+		    "CSync",	    RR_CSync,
+		    "+CSync",	    RR_CSyncPositive,
+		    "-CSync",	    RR_CSyncNegative,
+		    NULL,	    0,
+		};
+		int f;
+		
+		for (f = 0; mode_flags[f].string; f++)
+		    if (!strcmp (mode_flags[f].string, argv[i]))
+			break;
+		
+		if (!mode_flags[f].string)
+		    break;
+    		m->mode.modeFlags |= mode_flags[f].flag;
+    		i++;
+	    }
+	    m->next = umodes;
+	    m->new = True;
+	    umodes = m;
+	    modeit = True;
+	    continue;
+	}
+	if (!strcmp ("--rmmode", argv[i]))
+	{
+	    umode_t  *m = malloc (sizeof (umode_t));
+
+	    if (++i>=argc) usage ();
+	    m->mode.name = argv[i];
+	    m->mode.nameLength = strlen (argv[i]);
+	    m->new = False;
+	    m->next = umodes;
+	    umodes = m;
+	    modeit = True;
+	    continue;
+	}
 #endif
 	usage();
     }
@@ -1710,6 +1803,31 @@ main (int argc, char **argv)
     if (major > 1 || (major == 1 && minor >= 2))
 	has_1_2 = True;
 	
+    if (has_1_2 && modeit)
+    {
+	umode_t	*m;
+
+	for (m = umodes; m; m = m->next)
+	{
+	    if (m->new)
+		XRRCreateMode (dpy, root, &m->mode);
+	    else
+	    {
+		XRRModeInfo *e;
+		if (!res)
+		    get_screen ();
+		e = find_mode_by_name (m->mode.name);
+		if (e)
+		{
+		    XRRDestroyMode (dpy, m->mode.id);
+		}
+		else
+		    fatal ("cannot find mode %s\n", m->mode.name);
+	    }
+	}
+	if (!setit_1_2)
+	    exit (0);
+    }
     if (setit_1_2)
     {
 	XRROutputInfo	    *output_info;
@@ -1813,6 +1931,9 @@ main (int argc, char **argv)
     if (query_1_2 || (query && has_1_2 && !query_1))
     {
 	output_t    *output;
+	int	    m;
+	
+#define ModeShown   0x80000000
 	
 	get_screen ();
 	get_crtcs ();
@@ -1966,6 +2087,7 @@ main (int argc, char **argv)
 		for (j = 0; j < output_info->nmode; j++)
 		{
 		    XRRModeInfo	*mode = find_mode_by_xid (output_info->modes[j]);
+		    XRRModeFlags    modeFlags = mode->modeFlags & ~ModeShown;
 		    
 		    printf ("  %s (0x%x) %6.1fMHz\n",
 			    mode->name, mode->id,
@@ -1976,6 +2098,7 @@ main (int argc, char **argv)
 		    printf ("        v: height %4d start %4d end %4d total %4d           clock %6.1fHz\n",
 			    mode->height, mode->vSyncStart, mode->vSyncEnd, mode->vTotal,
 			    mode_refresh (mode));
+		    mode->modeFlags |= ModeShown;
 		}
 	    }
 	    else
@@ -1997,6 +2120,7 @@ main (int argc, char **argv)
 			kmode = find_mode_by_xid (output_info->modes[k]);
 			if (strcmp (jmode->name, kmode->name) != 0) continue;
 			mode_shown[k] = True;
+			kmode->modeFlags |= ModeShown;
 			printf (" %6.1f", mode_refresh (kmode));
 			if (kmode == output->mode_info)
 			    printf ("*");
@@ -2010,6 +2134,23 @@ main (int argc, char **argv)
 		    printf ("\n");
 		}
 		free (mode_shown);
+	    }
+	}
+	for (m = 0; m < res->nmode; m++)
+	{
+	    XRRModeInfo	*mode = &res->modes[m];
+
+	    if (!(mode->modeFlags & ModeShown))
+	    {
+		printf ("  %s (0x%x) %6.1fMHz\n",
+			mode->name, mode->id,
+			(float)mode->dotClock / 1000000.0);
+		printf ("        h: width  %4d start %4d end %4d total %4d skew %4d clock %6.1fKHz\n",
+			mode->width, mode->hSyncStart, mode->hSyncEnd,
+			mode->hTotal, mode->hSkew, mode_hsync (mode) / 1000);
+		printf ("        v: height %4d start %4d end %4d total %4d           clock %6.1fHz\n",
+			mode->height, mode->vSyncStart, mode->vSyncEnd, mode->vTotal,
+			mode_refresh (mode));
 	    }
 	}
 	exit (0);

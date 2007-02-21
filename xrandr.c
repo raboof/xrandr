@@ -111,6 +111,7 @@ usage(void)
     fprintf(stderr, "      --right-of <output>\n");
     fprintf(stderr, "      --above <output>\n");
     fprintf(stderr, "      --below <output>\n");
+    fprintf(stderr, "      --same-as <output>\n");
     fprintf(stderr, "      --off\n");
     fprintf(stderr, "      --crtc <crtc>\n");
 #endif
@@ -167,7 +168,7 @@ typedef enum _policy {
 } policy_t;
 
 typedef enum _relation {
-    left_of, right_of, above, below
+    left_of, right_of, above, below, same_as,
 } relation_t;
 
 typedef enum _changes {
@@ -1282,6 +1283,9 @@ set_positions (void)
 		output->x = relation->x;
 		output->y = relation->y + mode_height (relation->mode_info, relation->rotation);
 		break;
+	    case same_as:
+		output->x = relation->x;
+		output->y = relation->y;
 	    }
 	    output->changes |= changes_position;
 	    any_set = True;
@@ -1596,6 +1600,14 @@ main (int argc, char **argv)
 	    if (++i>=argc) usage ();
 	    if (!output) usage();
 	    output->relation = below;
+	    output->relative_to = argv[i];
+	    output->changes |= changes_relation;
+	    continue;
+	}
+	if (!strcmp ("--same-as", argv[i])) {
+	    if (++i>=argc) usage ();
+	    if (!output) usage();
+	    output->relation = same_as;
 	    output->relative_to = argv[i];
 	    output->changes |= changes_relation;
 	    continue;

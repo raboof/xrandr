@@ -1883,7 +1883,7 @@ main (int argc, char **argv)
 		printf ("\tIdentifier: 0x%x\n", output->output.xid);
 		printf ("\tTimestamp:  %d\n", output_info->timestamp);
 		printf ("\tSubpixel:   %s\n", order[output_info->subpixel_order]);
-		printf ("\tClones:     ");
+		printf ("\tClones:    ");
 		for (j = 0; j < output_info->nclone; j++)
 		{
 		    output_t	*clone = find_output_by_xid (output_info->clones[j]);

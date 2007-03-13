@@ -119,6 +119,8 @@ usage(void)
     fprintf(stderr, "            <vdisp> <vsync-start> <vsync-end> <vtotal>\n");
     fprintf(stderr, "            [+HSync] [-HSync] [+Vsync] [-VSync]\n");
     fprintf(stderr, "  --rmmode <name>\n");
+    fprintf(stderr, "  --addmode <output> <mode>\n");
+    fprintf(stderr, "  --delmode <output> <mode>\n");
 #endif
 
     exit(1);
@@ -235,6 +237,8 @@ struct _output {
     float	    refresh;
     XRRModeInfo	    *mode_info;
     
+    name_t	    addmode;
+
     relation_t	    relation;
     char	    *relative_to;
 
@@ -244,11 +248,18 @@ struct _output {
     Bool    	    automatic;
 };
 
+typedef enum _umode_action {
+    umode_create, umode_destroy, umode_add, umode_delete
+} umode_action_t;
+
+
 struct _umode {
     struct _umode   *next;
     
-    Bool	    new;
+    umode_action_t  action;
     XRRModeInfo	    mode;
+    name_t	    output;
+    name_t	    name;
 };
 
 static char *connection[3] = {
@@ -1750,7 +1761,7 @@ main (int argc, char **argv)
     		i++;
 	    }
 	    m->next = umodes;
-	    m->new = True;
+	    m->action = umode_create;
 	    umodes = m;
 	    modeit = True;
 	    continue;
@@ -1760,9 +1771,36 @@ main (int argc, char **argv)
 	    umode_t  *m = malloc (sizeof (umode_t));
 
 	    if (++i>=argc) usage ();
-	    m->mode.name = argv[i];
-	    m->mode.nameLength = strlen (argv[i]);
-	    m->new = False;
+	    set_name (&m->name, argv[i], name_string|name_xid);
+	    m->action = umode_destroy;
+	    m->next = umodes;
+	    umodes = m;
+	    modeit = True;
+	    continue;
+	}
+	if (!strcmp ("--addmode", argv[i]))
+	{
+	    umode_t  *m = malloc (sizeof (umode_t));
+
+	    if (++i>=argc) usage ();
+	    set_name (&m->output, argv[i], name_string|name_xid);
+	    if (++i>=argc) usage();
+	    set_name (&m->name, argv[i], name_string|name_xid);
+	    m->action = umode_add;
+	    m->next = umodes;
+	    umodes = m;
+	    modeit = True;
+	    continue;
+	}
+	if (!strcmp ("--delmode", argv[i]))
+	{
+	    umode_t  *m = malloc (sizeof (umode_t));
+
+	    if (++i>=argc) usage ();
+	    set_name (&m->output, argv[i], name_string|name_xid);
+	    if (++i>=argc) usage();
+	    set_name (&m->name, argv[i], name_string|name_xid);
+	    m->action = umode_delete;
 	    m->next = umodes;
 	    umodes = m;
 	    modeit = True;
@@ -1807,26 +1845,50 @@ main (int argc, char **argv)
     {
 	umode_t	*m;
 
+        get_screen ();
+	get_crtcs();
+	get_outputs();
+	
 	for (m = umodes; m; m = m->next)
 	{
-	    if (m->new)
+	    XRRModeInfo *e;
+	    output_t	*o;
+	    
+	    switch (m->action) {
+	    case umode_create:
 		XRRCreateMode (dpy, root, &m->mode);
-	    else
-	    {
-		XRRModeInfo *e;
-		if (!res)
-		    get_screen ();
-		e = find_mode_by_name (m->mode.name);
-		if (e)
-		{
-		    XRRDestroyMode (dpy, m->mode.id);
-		}
-		else
-		    fatal ("cannot find mode %s\n", m->mode.name);
+		break;
+	    case umode_destroy:
+		e = find_mode (&m->name, 0);
+		if (!e)
+		    fatal ("cannot find mode");
+		XRRDestroyMode (dpy, e->id);
+		break;
+	    case umode_add:
+		o = find_output (&m->output);
+		if (!o)
+		    fatal ("cannot find output");
+		e = find_mode (&m->name, 0);
+		if (!e)
+		    fatal ("cannot find mode");
+		XRRAddOutputMode (dpy, o->output.xid, e->id);
+		break;
+	    case umode_delete:
+		o = find_output (&m->output);
+		if (!o)
+		    fatal ("cannot find output");
+		e = find_mode (&m->name, 0);
+		if (!e)
+		    fatal ("cannot find mode");
+		XRRDeleteOutputMode (dpy, o->output.xid, e->id);
+		break;
 	    }
 	}
 	if (!setit_1_2)
+	{
+	    XSync (dpy, False);
 	    exit (0);
+	}
     }
     if (setit_1_2)
     {

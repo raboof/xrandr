@@ -1696,7 +1696,8 @@ main (int argc, char **argv)
 		output->automatic = True;
 		output->changes |= changes_automatic;
 	    }
-	    automatic = True;
+	    else
+		automatic = True;
 	    setit_1_2 = True;
 	    continue;
 	}

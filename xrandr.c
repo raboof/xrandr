@@ -2279,7 +2279,7 @@ main (int argc, char **argv)
 	       major_version, minor_version);
     }
 
-    if (query) {
+    if (query || query_1) {
 	printf(" SZ:    Pixels          Physical       Refresh\n");
 	for (i = 0; i < nsize; i++) {
 	    printf ("%c%-2d %5d x %-5d  (%4dmm x%4dmm )",

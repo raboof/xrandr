@@ -2243,6 +2243,12 @@ main (int argc, char **argv)
     }
     else if (size < 0)
 	size = current_size;
+    else if (size >= nsize) {
+	fprintf (stderr,
+		 "Size index %d is too large, there are only %d sizes\n",
+		 size, nsize);
+	exit (1);
+    }
 
     if (rot < 0)
     {

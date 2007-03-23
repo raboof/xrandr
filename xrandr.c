@@ -112,6 +112,7 @@ usage(void)
     fprintf(stderr, "      --above <output>\n");
     fprintf(stderr, "      --below <output>\n");
     fprintf(stderr, "      --same-as <output>\n");
+    fprintf(stderr, "      --set <property> <value>\n");
     fprintf(stderr, "      --off\n");
     fprintf(stderr, "      --crtc <crtc>\n");
     fprintf(stderr, "  --newmode <name> <clock MHz>\n");
@@ -208,6 +209,7 @@ typedef struct {
 typedef struct _crtc crtc_t;
 typedef struct _output	output_t;
 typedef struct _umode	umode_t;
+typedef struct _output_prop output_prop_t;
 
 struct _crtc {
     name_t	    crtc;
@@ -222,11 +224,19 @@ struct _crtc {
     int		    noutput;
 };
 
+struct _output_prop {
+    struct _output_prop	*next;
+    char		*name;
+    char		*value;
+};
+
 struct _output {
     struct _output   *next;
     
     changes_t	    changes;
     
+    output_prop_t   *props;
+
     name_t	    output;
     XRROutputInfo   *output_info;
     
@@ -1440,6 +1450,7 @@ main (int argc, char **argv)
     Bool    	setit_1_2 = False;
     Bool    	query_1_2 = False;
     Bool	modeit = False;
+    Bool	propit = False;
     Bool	query_1 = False;
     int		major, minor;
 #endif
@@ -1645,6 +1656,19 @@ main (int argc, char **argv)
 	    output->relation = same_as;
 	    output->relative_to = argv[i];
 	    output->changes |= changes_relation;
+	    continue;
+	}
+	if (!strcmp ("--set", argv[i])) {
+	    output_prop_t   *prop;
+	    if (!output) usage();
+	    prop = malloc (sizeof (output_prop_t));
+	    prop->next = output->props;
+	    output->props = prop;
+	    if (++i>=argc) usage ();
+	    prop->name = argv[i];
+	    if (++i>=argc) usage ();
+	    prop->value = argv[i];
+	    propit = True;
 	    continue;
 	}
 	if (!strcmp ("--off", argv[i])) {
@@ -1883,6 +1907,54 @@ main (int argc, char **argv)
 		    fatal ("cannot find mode");
 		XRRDeleteOutputMode (dpy, o->output.xid, e->id);
 		break;
+	    }
+	}
+	if (!setit_1_2)
+	{
+	    XSync (dpy, False);
+	    exit (0);
+	}
+    }
+    if (has_1_2 && propit)
+    {
+	
+        get_screen ();
+	get_crtcs();
+	get_outputs();
+	
+	for (output = outputs; output; output = output->next)
+	{
+	    output_prop_t   *prop;
+
+	    for (prop = output->props; prop; prop = prop->next)
+	    {
+		Atom		name = XInternAtom (dpy, prop->name, False);
+		Atom		type;
+		int		format;
+		unsigned char	*data;
+		int		nelements;
+		int		int_value;
+		unsigned long	ulong_value;
+		
+		if (sscanf (prop->value, "%d", &int_value) == 1 ||
+		    sscanf (prop->value, "0x%x", &int_value) == 1)
+		{
+		    type = XA_INTEGER;
+		    ulong_value = int_value;
+		    data = (unsigned char *) &ulong_value;
+		    nelements = 1;
+		    format = 32;
+		}
+		else
+		{
+		    type = XA_STRING;
+		    data = prop->value;
+		    nelements = strlen (prop->value);
+		    format = 8;
+		}
+		XRRChangeOutputProperty (dpy, output->output.xid,
+					 name, type, format, PropModeReplace,
+					 data, nelements);
 	    }
 	}
 	if (!setit_1_2)

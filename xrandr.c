@@ -189,6 +189,7 @@ typedef enum _changes {
     changes_reflection = (1 << 5),
     changes_automatic = (1 << 6),
     changes_refresh = (1 << 7),
+    changes_property = (1 << 8),
 } changes_t;
 
 typedef enum _name_kind {
@@ -1669,6 +1670,8 @@ main (int argc, char **argv)
 	    if (++i>=argc) usage ();
 	    prop->value = argv[i];
 	    propit = True;
+	    output->changes |= changes_property;
+	    setit_1_2 = True;
 	    continue;
 	}
 	if (!strcmp ("--off", argv[i])) {
@@ -1935,8 +1938,30 @@ main (int argc, char **argv)
 		int		nelements;
 		int		int_value;
 		unsigned long	ulong_value;
+		unsigned char	*prop_data;
+		int		actual_format;
+		unsigned long	nitems, bytes_after;
+		Atom		actual_type;
+		XRRPropertyInfo *propinfo;
+
+		type = AnyPropertyType;
+		format=0;
 		
-		if (sscanf (prop->value, "%d", &int_value) == 1 ||
+		if (XRRGetOutputProperty (dpy, output->output.xid, name,
+					  0, 100, False, False,
+					  AnyPropertyType,
+					  &actual_type, &actual_format,
+					  &nitems, &bytes_after, &prop_data) == Success &&
+
+		    (propinfo = XRRQueryOutputProperty(dpy, output->output.xid,
+						      name)))
+		{
+		    type = actual_type;
+		    format = actual_format;
+		}
+		
+		if ((type == XA_INTEGER || type == AnyPropertyType) &&
+		    sscanf (prop->value, "%d", &int_value) == 1 ||
 		    sscanf (prop->value, "0x%x", &int_value) == 1)
 		{
 		    type = XA_INTEGER;
@@ -1945,7 +1970,14 @@ main (int argc, char **argv)
 		    nelements = 1;
 		    format = 32;
 		}
-		else
+		else if ((type == XA_ATOM))
+		{
+		    ulong_value = XInternAtom (dpy, prop->value, False);
+		    data = (unsigned char *) &ulong_value;
+		    nelements = 1;
+		    format = 32;
+		}
+		else if ((type == XA_STRING || type == AnyPropertyType))
 		{
 		    type = XA_STRING;
 		    data = prop->value;
@@ -2206,6 +2238,26 @@ main (int argc, char **argv)
 			}
 
 			printf("\n");
+		    } else if (actual_type == XA_ATOM &&
+			       actual_format == 32)
+		    {
+			printf("\t%s: %s",
+			       XGetAtomName (dpy, props[j]),
+			       XGetAtomName (dpy, *(Atom *)prop));
+
+ 			if (!propinfo->range && propinfo->num_values > 0) {
+			    printf("\n\t\tsupported:");
+
+			    for (k = 0; k < propinfo->num_values; k++)
+			    {
+				printf(" %-12.12s", XGetAtomName (dpy,
+							    propinfo->values[k]));
+				if (k % 4 == 3 && k < propinfo->num_values - 1)
+				    printf ("\n\t\t          ");
+			    }
+			}
+			printf("\n");
+			
 		    } else if (actual_format == 8) {
 			printf ("\t\t%s: %s%s\n", XGetAtomName (dpy, props[j]),
 				prop, bytes_after ? "..." : "");

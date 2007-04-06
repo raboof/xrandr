@@ -1288,6 +1288,8 @@ set_positions (void)
 
 	    if (!(output->changes & changes_relation)) continue;
 	    
+	    if (output->mode_info == NULL) continue;
+
 	    init_name (&relation_name);
 	    set_name_string (&relation_name, output->relative_to);
 	    relation = find_output (&relation_name);

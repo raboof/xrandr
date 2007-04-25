@@ -118,7 +118,7 @@ usage(void)
     fprintf(stderr, "  --newmode <name> <clock MHz>\n");
     fprintf(stderr, "            <hdisp> <hsync-start> <hsync-end> <htotal>\n");
     fprintf(stderr, "            <vdisp> <vsync-start> <vsync-end> <vtotal>\n");
-    fprintf(stderr, "            [+HSync] [-HSync] [+Vsync] [-VSync]\n");
+    fprintf(stderr, "            [+HSync] [-HSync] [+VSync] [-VSync]\n");
     fprintf(stderr, "  --rmmode <name>\n");
     fprintf(stderr, "  --addmode <output> <mode>\n");
     fprintf(stderr, "  --delmode <output> <mode>\n");
@@ -1782,7 +1782,7 @@ main (int argc, char **argv)
 		int f;
 		
 		for (f = 0; mode_flags[f].string; f++)
-		    if (!strcmp (mode_flags[f].string, argv[i]))
+		    if (!strcasecmp (mode_flags[f].string, argv[i]))
 			break;
 		
 		if (!mode_flags[f].string)
@@ -1891,25 +1891,25 @@ main (int argc, char **argv)
 	    case umode_destroy:
 		e = find_mode (&m->name, 0);
 		if (!e)
-		    fatal ("cannot find mode");
+		    fatal ("cannot find mode \"%s\"\n", m->name.string);
 		XRRDestroyMode (dpy, e->id);
 		break;
 	    case umode_add:
 		o = find_output (&m->output);
 		if (!o)
-		    fatal ("cannot find output");
+		    fatal ("cannot find output \"%s\"\n", m->output.string);
 		e = find_mode (&m->name, 0);
 		if (!e)
-		    fatal ("cannot find mode");
+		    fatal ("cannot find mode \"%s\"\n", m->name.string);
 		XRRAddOutputMode (dpy, o->output.xid, e->id);
 		break;
 	    case umode_delete:
 		o = find_output (&m->output);
 		if (!o)
-		    fatal ("cannot find output");
+		    fatal ("cannot find output \"%s\"\n", m->output.string);
 		e = find_mode (&m->name, 0);
 		if (!e)
-		    fatal ("cannot find mode");
+		    fatal ("cannot find mode \"%s\"\n", m->name.string);
 		XRRDeleteOutputMode (dpy, o->output.xid, e->id);
 		break;
 	    }

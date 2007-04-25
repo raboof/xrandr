@@ -168,6 +168,7 @@ reflection_name (Rotation rotation)
     case RR_Reflect_X|RR_Reflect_Y:
 	return "X and Y axis";
     }
+    return "invalid reflection";
 }
 
 #if HAS_RANDR_1_2
@@ -449,7 +450,7 @@ find_output (name_t *name)
 	    break;
 	if ((common & name_string) && !strcmp (name->string, output->output.string))
 	    break;
-	if ((common & name_index) & name->index == output->output.index)
+	if ((common & name_index) && name->index == output->output.index)
 	    break;
     }
     return output;
@@ -898,8 +899,6 @@ set_crtcs (void)
 static Status
 crtc_disable (crtc_t *crtc)
 {
-    XRRCrtcInfo	*crtc_info = crtc->crtc_info;
-    
     if (verbose)
     	printf ("crtc %d: disable\n", crtc->crtc.index);
 	
@@ -965,7 +964,7 @@ static void
 screen_revert (void)
 {
     if (verbose)
-	printf ("screen %d: revert\n");
+	printf ("screen %d: revert\n", screen);
 
     if (dryrun)
 	return;
@@ -1229,7 +1228,7 @@ find_crtc_for_output (output_t *output)
     for (c = 0; c < output->output_info->ncrtc; c++)
     {
 	crtc_t	    *crtc;
-	int	    l, o;
+	int	    l;
 	output_t    *other;
 
 	crtc = find_crtc_by_xid (output->output_info->crtcs[c]);
@@ -1448,7 +1447,6 @@ main (int argc, char **argv)
     int		ret = 0;
 #if HAS_RANDR_1_2
     output_t	*output = NULL;
-    char	*crtc;
     policy_t	policy = clone;
     Bool    	setit_1_2 = False;
     Bool    	query_1_2 = False;
@@ -1768,16 +1766,16 @@ main (int argc, char **argv)
 		    char	    *string;
 		    unsigned long   flag;
 		} mode_flags[] = {
-		    "+HSync", RR_HSyncPositive,
-		    "-HSync", RR_HSyncNegative,
-		    "+VSync", RR_VSyncPositive,
-		    "-VSync", RR_VSyncNegative,
-		    "Interlace", RR_Interlace,
-		    "DoubleScan", RR_DoubleScan,
-		    "CSync",	    RR_CSync,
-		    "+CSync",	    RR_CSyncPositive,
-		    "-CSync",	    RR_CSyncNegative,
-		    NULL,	    0,
+		    { "+HSync", RR_HSyncPositive },
+		    { "-HSync", RR_HSyncNegative },
+		    { "+VSync", RR_VSyncPositive },
+		    { "-VSync", RR_VSyncNegative },
+		    { "Interlace", RR_Interlace },
+		    { "DoubleScan", RR_DoubleScan },
+		    { "CSync",	    RR_CSync },
+		    { "+CSync",	    RR_CSyncPositive },
+		    { "-CSync",	    RR_CSyncNegative },
+		    { NULL,	    0 }
 		};
 		int f;
 		
@@ -1963,8 +1961,8 @@ main (int argc, char **argv)
 		}
 		
 		if ((type == XA_INTEGER || type == AnyPropertyType) &&
-		    sscanf (prop->value, "%d", &int_value) == 1 ||
-		    sscanf (prop->value, "0x%x", &int_value) == 1)
+		    (sscanf (prop->value, "%d", &int_value) == 1 ||
+		     sscanf (prop->value, "0x%x", &int_value) == 1))
 		{
 		    type = XA_INTEGER;
 		    ulong_value = int_value;
@@ -1982,7 +1980,7 @@ main (int argc, char **argv)
 		else if ((type == XA_STRING || type == AnyPropertyType))
 		{
 		    type = XA_STRING;
-		    data = prop->value;
+		    data = (unsigned char *) prop->value;
 		    nelements = strlen (prop->value);
 		    format = 8;
 		}
@@ -1999,15 +1997,6 @@ main (int argc, char **argv)
     }
     if (setit_1_2)
     {
-	XRROutputInfo	    *output_info;
-	XRRCrtcInfo	    *crtc_info;
-	XRRCrtcInfo	    *crtc_cur;
-	XRRModeInfo	    *mode_info;
-	RROutput	    *crtc_outputs;
-	int		    n_crtc_output;
-	int		    c, o, m;
-	int		    om, sm;
-
 	get_screen ();
 	get_crtcs ();
 	get_outputs ();
@@ -2228,7 +2217,7 @@ main (int argc, char **argv)
 		    {
 			printf("\t%s: %d (0x%08x)",
 			       XGetAtomName (dpy, props[j]),
-			       *(INT32 *)prop);
+			       *(INT32 *)prop, *(INT32 *)prop);
 
  			if (propinfo->range && propinfo->num_values > 0) {
 			    printf(" range%s: ",
@@ -2276,7 +2265,6 @@ main (int argc, char **argv)
 		for (j = 0; j < output_info->nmode; j++)
 		{
 		    XRRModeInfo	*mode = find_mode_by_xid (output_info->modes[j]);
-		    XRRModeFlags    modeFlags = mode->modeFlags & ~ModeShown;
 		    
 		    printf ("  %s (0x%x) %6.1fMHz\n",
 			    mode->name, mode->id,
@@ -2399,7 +2387,7 @@ main (int argc, char **argv)
 	    if (rate == rates[i])
 		break;
 	if (i == nrate) {
-	    fprintf (stderr, "Rate %d not available for this size\n", rate);
+	    fprintf (stderr, "Rate %.1f Hz not available for this size\n", rate);
 	    exit (1);
 	}
     }

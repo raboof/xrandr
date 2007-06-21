@@ -120,8 +120,8 @@ usage(void)
     fprintf(stderr, "            <vdisp> <vsync-start> <vsync-end> <vtotal>\n");
     fprintf(stderr, "            [+HSync] [-HSync] [+VSync] [-VSync]\n");
     fprintf(stderr, "  --rmmode <name>\n");
-    fprintf(stderr, "  --addmode <output> <mode>\n");
-    fprintf(stderr, "  --delmode <output> <mode>\n");
+    fprintf(stderr, "  --addmode <output> <name>\n");
+    fprintf(stderr, "  --delmode <output> <name>\n");
 #endif
 
     exit(1);

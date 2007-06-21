@@ -52,8 +52,14 @@ xrandr \- primitive command line interface to RandR extension
 [\-\-right\-of <output>\]
 [\-\-above <output>\]
 [\-\-below <output>\]
+[\-\-same-as <output>\]
+[\-\-set <property> <value>]
 [\-\-off]
 [\-\-crtc <crtc>]
+[\-\-newmode <name> \fImode\fP]
+[\-\-rmmode <name>]
+[\-\-addmode <output> <name>]
+[\-\-delmode <output> <name>]
 .br
 .B RandR version 1.0 and version 1.1 options
 .br
@@ -126,12 +132,17 @@ contents to be reflected across the specified axes.
 .IP "\-\-rotate \fIrotation\fP"
 Rotation can be one of 'normal', 'left', 'right' or 'inverted'. This causes
 the output contents to be rotated in the specified direction.
-.IP "\-\-left-of, \-\-right-of, \-\-above, \-\-below <another output>"
+.IP "\-\-left\-of, \-\-right\-of, \-\-above, \-\-below, \-\-same-as <another output>"
 Use one of these options to position the output relative to the position of
 another output. This allows convenient tiling of outputs within the screen.
 The position is always computed relative to the new position of the other
-output, so it is not valid to say \-\-output a \-\-left-of b \-\-output 
-b \-\-left-of a.
+output, so it is not valid to say \-\-output a \-\-left\-of b \-\-output 
+b \-\-left\-of a.
+.IP "\-\-set <property> <value>"
+Sets an output property. Integer properties may be specified as a valid
+(see \-\-prop) decimal or hexadecimal (with a leading 0x) value. Atom properties
+may be set to any of the valid atoms (see \-\-prop). String properties may be
+set to any value.
 .IP "\-\-off"
 Disables the output.
 .IP "\-\-crtc <crtc>"
@@ -139,6 +150,18 @@ Uses the specified crtc (either as an index in the list of CRTCs or XID).
 In normal usage, this option is not required as xrandr tries to make
 sensible choices about which crtc to use with each output. When that fails
 for some reason, this option can override the normal selection.
+.IP "\-\-newmode <name> \fImode\fP"
+New modelines can be added to the server and then associated with outputs.
+This option does the former. The \fImode\fP is specified using the ModeLine
+syntax for xorg.conf: hdisp hsyncstart hsyncend htotal vdisp vsyncstart
+vsyncend vtotal \fIflags\fP. \fIflags\fP can be zero or more of +HSync,
+-HSync, +VSync, -VSync, Interlace, DoubleScan, CSync, +CSync, -CSync.
+.IP "\-\-rmmode <name>"
+This removes a mode from the server if it is otherwise unused.
+.IP "\-\-addmode <output> <name>"
+Add a mode to the set of valid modes for an output.
+.IP "\-\-delmode <output> <name>"
+Remove a mode from the set of valid modes for an output.
 .PP
 .SH "RandR version 1.1 options"
 These options are available for X servers supporting RandR version 1.1 or

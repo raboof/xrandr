@@ -244,6 +244,7 @@ struct _output {
     
     name_t	    crtc;
     crtc_t	    *crtc_info;
+    crtc_t	    *current_crtc_info;
     
     name_t	    mode;
     float	    refresh;
@@ -1437,13 +1438,93 @@ set_screen_size (void)
     
 #endif
     
+void
+disable_outputs (output_t *outputs)
+{
+    while (outputs)
+    {
+	outputs->crtc_info = NULL;
+	outputs = outputs->next;
+    }
+}
+
+/*
+ * find the best mapping from output to crtc available
+ */
 int
-pick_crtcs (output_t *outputs)
+pick_crtcs_score (output_t *outputs)
+{
+    output_t	*output;
+    int		best_score;
+    int		my_score;
+    int		score;
+    crtc_t	*best_crtc;
+    int		c;
+    
+    if (!outputs)
+	return 0;
+    
+    output = outputs;
+    outputs = outputs->next;
+    /*
+     * Score with this output disabled
+     */
+    output->crtc_info = NULL;
+    best_score = pick_crtcs_score (outputs);
+    if (output->mode_info == NULL)
+	return best_score;
+
+    best_crtc = NULL;
+    /* 
+     * Now score with this output any valid crtc
+     */
+    for (c = 0; c < output->output_info->ncrtc; c++)
+    {
+	crtc_t	    *crtc;
+
+	crtc = find_crtc_by_xid (output->output_info->crtcs[c]);
+	if (!crtc)
+	    fatal ("cannot find crtc 0x%x\n", output->output_info->crtcs[c]);
+	
+	/* reset crtc allocation for following outputs */
+	disable_outputs (outputs);
+	if (!check_crtc_for_output (crtc, output))
+	    continue;
+	
+	my_score = 1000;
+	/* slight preference for existing connections */
+	if (crtc == output->current_crtc_info)
+	    my_score++;
+
+	output->crtc_info = crtc;
+	score = my_score + pick_crtcs_score (outputs);
+	if (score > best_score)
+	{
+	    best_crtc = crtc;
+	    best_score = score;
+	}
+    }
+    /*
+     * Reset other outputs based on this one using the best crtc
+     */
+    if (output->crtc_info != best_crtc)
+    {
+	output->crtc_info = best_crtc;
+	(void) pick_crtcs_score (outputs);
+    }
+    return best_score;
+}
+
+/*
+ * Pick crtcs for any changing outputs that don't have one
+ */
+void
+pick_crtcs (void)
 {
     output_t	*output;
 
     /*
-     * Pick crtcs for any changing outputs that don't have one
+     * First try to match up newly enabled outputs with spare crtcs
      */
     for (output = outputs; output; output = output->next)
     {
@@ -1451,8 +1532,27 @@ pick_crtcs (output_t *outputs)
 	{
 	    output->crtc_info = find_crtc_for_output (output);
 	    if (!output->crtc_info)
-		fatal ("cannot find crtc for output %s\n", output->output.string);
+		break;
 	}
+    }
+    /*
+     * Everyone is happy
+     */
+    if (!output)
+	return;
+    /*
+     * When the simple way fails, see if there is a way
+     * to swap crtcs around and make things work
+     */
+    for (output = outputs; output; output = output->next)
+	output->current_crtc_info = output->crtc_info;
+    pick_crtcs_score (outputs);
+    for (output = outputs; output; output = output->next)
+    {
+	if (output->mode_info && !output->crtc_info)
+	    fatal ("cannot find crtc for output %s\n", output->output.string);
+	if (!output->changes && output->crtc_info != output->current_crtc_info)
+	    output->changes |= changes_crtc;
     }
 }
 
@@ -2042,7 +2142,7 @@ main (int argc, char **argv)
 	set_positions ();
 	set_screen_size ();
 
-	pick_crtcs (outputs);
+	pick_crtcs ();
 
 	/*
 	 * Assign outputs to crtcs

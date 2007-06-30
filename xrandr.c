@@ -1220,6 +1220,56 @@ mark_changing_crtcs (void)
     }
 }
 
+/*
+ * Test whether 'crtc' can be used for 'output'
+ */
+Bool
+check_crtc_for_output (crtc_t *crtc, output_t *output)
+{
+    int		c;
+    int		l;
+    output_t    *other;
+    
+    for (c = 0; c < output->output_info->ncrtc; c++)
+	if (output->output_info->crtcs[c] == crtc->crtc.xid)
+	    break;
+    if (c == output->output_info->ncrtc)
+	return False;
+    for (other = outputs; other; other = other->next)
+    {
+	if (other == output)
+	    continue;
+
+	if (other->mode_info == NULL)
+	    continue;
+
+	if (other->crtc_info != crtc)
+	    continue;
+
+	/* see if the output connected to the crtc can clone to this output */
+	for (l = 0; l < output->output_info->nclone; l++)
+	    if (output->output_info->clones[l] == other->output.xid)
+		break;
+	/* not on the list, can't clone */
+	if (l == output->output_info->nclone) 
+	    return False;
+    }
+
+    if (crtc->noutput)
+    {
+	/* make sure the state matches */
+	if (crtc->mode_info != output->mode_info)
+	    return False;
+	if (crtc->x != output->x)
+	    return False;
+	if (crtc->y != output->y)
+	    return False;
+	if (crtc->rotation != output->rotation)
+	    return False;
+    }
+    return True;
+}
+
 crtc_t *
 find_crtc_for_output (output_t *output)
 {
@@ -1228,42 +1278,12 @@ find_crtc_for_output (output_t *output)
     for (c = 0; c < output->output_info->ncrtc; c++)
     {
 	crtc_t	    *crtc;
-	int	    l;
-	output_t    *other;
 
 	crtc = find_crtc_by_xid (output->output_info->crtcs[c]);
 	if (!crtc) fatal ("cannot find crtc 0x%x\n", output->output_info->crtcs[c]);
 
-	for (other = outputs; other; other = other->next)
-	{
-	    if (other == output)
-		continue;
-
-	    if (other->mode_info == NULL)
-		continue;
-
-	    if (other->crtc_info != crtc)
-		continue;
-	    
-	    /* see if the output connected to the crtc can clone to this output */
-	    for (l = 0; l < output->output_info->nclone; l++)
-		if (output->output_info->clones[l] == other->output.xid)
-		    break;
-	    /* not on the list, can't clone */
-	    if (l == output->output_info->nclone) break;
-	}
-	if (other) continue;
-	
-
-	if (crtc->noutput)
-	{
-	    /* make sure the state matches */
-	    if (crtc->mode_info != output->mode_info) continue;
-	    if (crtc->x != output->x) continue;
-	    if (crtc->y != output->y) continue;
-	    if (crtc->rotation != output->rotation) continue;
-	}
-	return crtc;
+	if (check_crtc_for_output (crtc, output))
+	    return crtc;
     }
     return NULL;
 }
@@ -1417,6 +1437,25 @@ set_screen_size (void)
     
 #endif
     
+int
+pick_crtcs (output_t *outputs)
+{
+    output_t	*output;
+
+    /*
+     * Pick crtcs for any changing outputs that don't have one
+     */
+    for (output = outputs; output; output = output->next)
+    {
+	if (output->changes && output->mode_info && !output->crtc_info)
+	{
+	    output->crtc_info = find_crtc_for_output (output);
+	    if (!output->crtc_info)
+		fatal ("cannot find crtc for output %s\n", output->output.string);
+	}
+    }
+}
+
 int
 main (int argc, char **argv)
 {
@@ -2003,18 +2042,7 @@ main (int argc, char **argv)
 	set_positions ();
 	set_screen_size ();
 
-	/*
-	 * Pick crtcs for any changing outputs that don't have one
-	 */
-	for (output = outputs; output; output = output->next)
-	{
-	    if (output->changes && output->mode_info && !output->crtc_info)
-	    {
-		output->crtc_info = find_crtc_for_output (output);
-		if (!output->crtc_info)
-		    fatal ("cannot find crtc for output %s\n", output->output.string);
-	    }
-	}
+	pick_crtcs (outputs);
 
 	/*
 	 * Assign outputs to crtcs

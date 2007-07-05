@@ -165,7 +165,8 @@ Remove a mode from the set of valid modes for an output.
 .PP
 .SH "RandR version 1.1 options"
 These options are available for X servers supporting RandR version 1.1 or
-older. They are still valid for newer X servers, but they don't 
+older. They are still valid for newer X servers, but they don't interact
+sensibly with version 1.2 options on the same command line.
 .IP "\-s <size index> or \-s <width>x<height>"
 This sets the screen size, either matching by size or using the index into
 the list of available sizes.

@@ -72,6 +72,22 @@ static char *order[6] = {
     "vertical bgr",
     "no subpixels"};
 
+static const struct {
+    char	    *string;
+    unsigned long   flag;
+} mode_flags[] = {
+    { "+HSync", RR_HSyncPositive },
+    { "-HSync", RR_HSyncNegative },
+    { "+VSync", RR_VSyncPositive },
+    { "-VSync", RR_VSyncNegative },
+    { "Interlace", RR_Interlace },
+    { "DoubleScan", RR_DoubleScan },
+    { "CSync",	    RR_CSync },
+    { "+CSync",	    RR_CSyncPositive },
+    { "-CSync",	    RR_CSyncNegative },
+    { NULL,	    0 }
+};
+
 static void
 usage(void)
 {
@@ -1901,21 +1917,6 @@ main (int argc, char **argv)
 	    if (sscanf (argv[i++], "%d", &m->mode.vTotal) != 1) usage();
 	    m->mode.modeFlags = 0;
 	    while (i < argc) {
-		static const struct {
-		    char	    *string;
-		    unsigned long   flag;
-		} mode_flags[] = {
-		    { "+HSync", RR_HSyncPositive },
-		    { "-HSync", RR_HSyncNegative },
-		    { "+VSync", RR_VSyncPositive },
-		    { "-VSync", RR_VSyncNegative },
-		    { "Interlace", RR_Interlace },
-		    { "DoubleScan", RR_DoubleScan },
-		    { "CSync",	    RR_CSync },
-		    { "+CSync",	    RR_CSyncPositive },
-		    { "-CSync",	    RR_CSyncNegative },
-		    { NULL,	    0 }
-		};
 		int f;
 		
 		for (f = 0; mode_flags[f].string; f++)
@@ -2246,6 +2247,8 @@ main (int argc, char **argv)
 			mode_width (mode, output->rotation),
 			mode_height (mode, output->rotation),
 			output->x, output->y);
+		if (verbose)
+		    printf (" (0x%x)", mode->id);
 		if (output->rotation != RR_Rotate_0 || verbose)
 		{
 		    printf (" %s", 
@@ -2393,10 +2396,15 @@ main (int argc, char **argv)
 		for (j = 0; j < output_info->nmode; j++)
 		{
 		    XRRModeInfo	*mode = find_mode_by_xid (output_info->modes[j]);
+		    int		f;
 		    
-		    printf ("  %s (0x%x) %6.1fMHz\n",
+		    printf ("  %s (0x%x) %6.1fMHz",
 			    mode->name, mode->id,
 			    (float)mode->dotClock / 1000000.0);
+		    for (f = 0; mode_flags[f].flag; f++)
+			if (mode->modeFlags & mode_flags[f].flag)
+			    printf (" %s", mode_flags[f].string);
+		    printf ("\n");
 		    printf ("        h: width  %4d start %4d end %4d total %4d skew %4d clock %6.1fKHz\n",
 			    mode->width, mode->hSyncStart, mode->hSyncEnd,
 			    mode->hTotal, mode->hSkew, mode_hsync (mode) / 1000);

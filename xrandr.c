@@ -2404,6 +2404,10 @@ main (int argc, char **argv)
 		    for (f = 0; mode_flags[f].flag; f++)
 			if (mode->modeFlags & mode_flags[f].flag)
 			    printf (" %s", mode_flags[f].string);
+		    if (mode == output->mode_info)
+			printf (" *current");
+		    if (j < output_info->npreferred)
+			printf (" +preferred");
 		    printf ("\n");
 		    printf ("        h: width  %4d start %4d end %4d total %4d skew %4d clock %6.1fKHz\n",
 			    mode->width, mode->hSyncStart, mode->hSyncEnd,

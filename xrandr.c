@@ -1534,14 +1534,13 @@ pick_crtcs_score (output_t *outputs)
 	    best_score = score;
 	}
     }
+    if (output->crtc_info != best_crtc)
+	output->crtc_info = best_crtc;
     /*
      * Reset other outputs based on this one using the best crtc
      */
-    if (output->crtc_info != best_crtc)
-    {
-	output->crtc_info = best_crtc;
-	(void) pick_crtcs_score (outputs);
-    }
+    (void) pick_crtcs_score (outputs);
+
     return best_score;
 }
 

@@ -34,7 +34,7 @@ appmandir = $(APP_MAN_DIR)
 
 appman_DATA = $(appman_PRE:man=@APP_MAN_SUFFIX@)
 
-EXTRA_DIST = $(appman_PRE) ChangeLog autogen.sh
+EXTRA_DIST = $(appman_PRE) ChangeLog autogen.sh xrandr_test.pl
 CLEANFILES = $(appman_DATA)
 MAINTAINERCLEANFILES = ChangeLog
 

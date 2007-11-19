@@ -14,33 +14,35 @@ $inbetween="";
 
 # Get output configuration
 @outputs=();
+%mode_name=();
 %out_modes=();
 %modes=();
-open P, "$xrandr|" or die "$xrandr";
+open P, "$xrandr --verbose|" or die "$xrandr";
 while (<P>) {
-  if (/^(\S+)\s(\S+)\s/) {
-    $o="";
-    if ($2 eq "connected") {
-      $o=$1;
-      push @outputs, $o;
-      $out_modes{$o}=[];
-    }
-    elsif ($2 eq "unknown") {
-      $o=$1;
-      push @outputs_unknown, $o;
-      $out_modes{$o}=[];
-    }
-  } elsif (/^\s+(\d+)x(\d+)\s+(\d.*?)\s*$/) {
-    my $w=$1, $h=$2;
-    $_=$3;
-    while (/([0-9.]+)/g) {
-      push @{$out_modes{$o}}, "${w}x$h\@$1";
-      $modes{"$o:${w}x$h\@$1"} = 1;
-      $modes{"$o:${w}x$h"} = "${w}x$h\@$1";
+  if (/^\S/) {
+    $o=""; $m=""; $x="";
+  }
+  if (/^(\S+)\s(connected|unknown connection)\s/) {
+    $o=$1;
+    push @outputs, $o         if $2 eq "connected";
+    push @outputs_unknown, $o if $2 eq "unknown connection";
+    $out_modes{$o}=[];
+  } elsif (/^\s+(\d+x\d+)\s+\((0x[0-9a-f]+)\)/) {
+    my $m=$1, $x=$2;
+    while (<P>) {
+      if (/^\s+v:.*?([0-9.]+)Hz\s*$/) {
+	$mode_name{$x}="$m\@$1";
+	push @{$out_modes{$o}}, $x;
+	$modes{"$o:$x"}=$x;
+	$modes{"$o:$m\@$1"}=$x;
+	$modes{"$o:$m"}=$x;
+        last;
+      }
     }
   }
 }
 close P;
+@outputs=(@outputs,@outputs_unknown) if @outputs < 2;
 
 # preamble
 print "\n***** xrandr test suite V$version *****\n\n";
@@ -54,15 +56,16 @@ if ($ARGV[0] eq "-w") {
 
 print "Detected connected outputs and available modes:\n\n";
 for $o (@outputs) {
-  print "$o:  ";
-  for $m (@{$out_modes{$o}}) {
-    print " $m";
+  print "$o:";
+  my $i=0;
+  for $x (@{$out_modes{$o}}) {
+    print "\n" if $i++ % 3 == 0;
+    print "  $x:$mode_name{$x}";
   }
   print "\n";
 }
 print "\n";
 
-@outputs=(@outputs,@outputs_unknown) if @outputs < 2;
 if (@outputs < 2) {
   print "Found less than two connected outputs. No tests available for that.\n";
   exit 1;
@@ -86,16 +89,19 @@ $b=$outputs[1];
 
 # Find biggest common mode
 undef $sab;
-for my $m (@{$out_modes{$a}}) {
-  if (defined $modes{"$b:$m"}) {
-    $sab=$m;
-    $m =~ m/(\d+)x(\d+)\@([0-9.]+)/;
-    $used{"$a:$m"} = $m;
-    $used{"$b:$m"} = $m;
-    $used{"$a:$1x$2"} = $m;
-    $used{"$b:$1x$2"} = $m;
-    $used{$m} = $m;
-    $used{"$1x$2"} = $m;
+for my $x (@{$out_modes{$a}}) {
+  if (defined $modes{"$b:$x"}) {
+    $m=$mode_name{$x};
+    $sab="$x:$m";
+    $m =~ m/(\d+x\d+)\@([0-9.]+)/;
+    $used{$x} = $x;
+    $used{$1} = $x;
+    $used{"$a:$x"} = $x;
+    $used{"$b:$x"} = $x;
+    $used{"$a:$m"} = $mode_name{$x};
+    $used{"$b:$m"} = $mode_name{$x};
+    $used{"$a:$1"} = $x;
+    $used{"$b:$1"} = $x;
     last;
   }
 }
@@ -107,40 +113,46 @@ if (! defined $sab) {
 
 # Find sets of additional non-common modes
 # Try to get non-overlapping resolution set, but if that fails get overlapping
-# ones but with different refresh values, and if that fails any one, but warn.
+# ones but with different refresh values, if that fails any with nonequal
+# timings, and if that fails any one, but warn.
 # Try modes unknown to other outputs first, they might need common ones
 # themselves.
 sub get_mode {
   my $o=$_[0];
-  for my $pass (1, 2, 3, 4, 5, 6, 7) {
-    CONT: for my $m (@{$out_modes{$o}}) {
-      $m =~ m/(\d+)x(\d+)\@([0-9.]+)/;
-      next CONT if defined $used{"$o:$m"};
-      next CONT if defined $used{"$o:$1x$2"} && $pass < 7;
-      next CONT if defined $used{$m} && $pass < 6;
-      next CONT if defined $used{"$1x$2"} && $pass < 4;
+  for my $pass (1, 2, 3, 4, 5, 6, 7, 8, 9) {
+    CONT: for my $x (@{$out_modes{$o}}) {
+      $m = $mode_name{$x};
+      $m =~ m/(\d+x\d+)\@([0-9.]+)/;
+      next CONT if defined $used{"$o:$x"};
+      next CONT if $pass < 9 && defined $used{"$o:$m"};
+      next CONT if $pass < 7 && defined $used{"$o:$1"};
+      next CONT if $pass < 6 && defined $used{$m};
+      next CONT if $pass < 4 && defined $used{$1};
       for my $other (@outputs) {
         next if $other eq $o;
-        next CONT if $used{"$other:$1x$2"} && $pass < 5;
-	next CONT if $modes{"$other:$m"} && $pass < 3;
-	next CONT if $modes{"$other:$1x$2"} && $pass < 2;
+        next CONT if $pass < 8 && defined $used{"$o:$x"};
+        next CONT if $pass < 5 && $used{"$other:$1"};
+	next CONT if $pass < 3 && $modes{"$other:$m"};
+	next CONT if $pass < 2 && $modes{"$other:$1"};
       }
       if ($pass >= 6) {
         print "Warning: No more non-common modes, using $m for $o\n";
       }
-      $used{"$o:$m"} = $m;
-      $used{"$o:$1x$2"} = $m;
-      $used{$m} = $m;
-      $used{"$1x$2"} = $m;
-      return $m;
+      $used{"$o:$x"} = $x;
+      $used{"$o:$m"} = $x;
+      $used{"$o:$1"} = $x;
+      $used{$x} = $x;
+      $used{$m} = $x;
+      $used{$1} = $x;
+      return "$x:$m";
     }
   }
   print "Warning: Cannot find any more modes for $o.\n";
   return undef;
 }
 sub mode_to_randr {
-  $_[0] =~ m/(\d+)x(\d+)\@([0-9.]+)/;
-  return "--mode $1x$2 --refresh $3";
+  $_[0] =~ m/^(0x[0-9a-f]+):(\d+)x(\d+)\@([0-9.]+)/;
+  return "--mode $1";
 }
 
 $sa1=get_mode($a);
@@ -197,7 +209,7 @@ sub t {
       } elsif (/^\s+$m\s+\($x\)/) {
         while (<P>) {
 	  if (/^\s+v:.*?([0-9.]+)Hz\s*$/) {
-            $r="$r  $o: $m\@$1($c)";
+            $r="$r  $o: $x:$m\@$1($c)";
 	    last;
 	  }
 	}

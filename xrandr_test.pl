@@ -25,6 +25,11 @@ while (<P>) {
       push @outputs, $o;
       $out_modes{$o}=[];
     }
+    elsif ($2 eq "unknown") {
+      $o=$1;
+      push @outputs_unknown, $o;
+      $out_modes{$o}=[];
+    }
   } elsif (/^\s+(\d+)x(\d+)\s+(\d.*?)\s*$/) {
     my $w=$1, $h=$2;
     $_=$3;
@@ -57,6 +62,7 @@ for $o (@outputs) {
 }
 print "\n";
 
+@outputs=(@outputs,@outputs_unknown) if @outputs < 2;
 if (@outputs < 2) {
   print "Found less than two connected outputs. No tests available for that.\n";
   exit 1;
@@ -161,51 +167,56 @@ print "\n";
 
 # Test subroutine
 sub t {
-  $name=$_[0];
-  $expect=$_[1];
-  $args=$_[2];
+  my $name=$_[0];
+  my $expect=$_[1];
+  my $args=$_[2];
   print "*** $name:\n";
   print "?   $expect\n" if $expect ne "";
   if ($name eq $prepare) {
     print "->  Prepared to run test\n\nRun test now with\n$xrandr --verbose $args\n\n";
     exit 0;
   }
-  system "$xrandr --verbose $args";
-  # Determine active configuration
-  open P, "$xrandr --verbose|" or die "$xrandr";
-  my $r = "";
-  my $o, $c, $m, $x;
-  while (<P>) {
-    if (/^\S/) {
-      $o=""; $c=""; $m=""; $x="";
-    }
-    if (/^(\S+)\sconnected (\d+x\d+)\+\d+\+\d+\s+\((0x[0-9a-f]+)\)/) {
-      $o=$1;
-      $m=$2;
-      $x=$3;
-      $o="A" if $o eq $a;
-      $o="B" if $o eq $b;
-    } elsif (/^\s*CRTC:\s*(\d)/) {
-      $c=$1;
-    } elsif (/^\s+$m\s+\($x\)/) {
-      while (<P>) {
-	if (/^\s+v:.*?([0-9.]+)Hz\s*$/) {
-          $r="$r  $o: $m\@$1($c)";
-	  last;
+  my $r = "", $out="";
+  if (system ("$xrandr --verbose $args") == 0) {
+    # Determine active configuration
+    open P, "$xrandr --verbose|" or die "$xrandr";
+    my $o, $c, $m, $x;
+    while (<P>) {
+      $out.=$_;
+      if (/^\S/) {
+        $o=""; $c=""; $m=""; $x="";
+      }
+      if (/^(\S+)\s(connected|unknown connection) (\d+x\d+)\+\d+\+\d+\s+\((0x[0-9a-f]+)\)/) {
+        $o=$1;
+	$m=$3;
+	$x=$4;
+	$o="A" if $o eq $a;
+	$o="B" if $o eq $b;
+      } elsif (/^\s*CRTC:\s*(\d)/) {
+        $c=$1;
+      } elsif (/^\s+$m\s+\($x\)/) {
+        while (<P>) {
+	  if (/^\s+v:.*?([0-9.]+)Hz\s*$/) {
+            $r="$r  $o: $m\@$1($c)";
+	    last;
+	  }
 	}
       }
     }
+    close P;
+  } else {
+    $expect="success" if $expect="";
+    $r="failed";
   }
-  close P;
   # Verify
   if ($expect ne "") {
     print "->$r\n";
     if ($r eq "  $expect") {
       print "->  ok\n\n";
     } else {
+      print "\n$out";
       print "\n->  FAILED: Test # $name:\n\n";
       print "    $xrandr --verbose $args\n\n";
-      system "$xrandr";
       exit 1;
     }
     eval $inbetween;

@@ -11,6 +11,7 @@ $xrandr="xrandr";
 $xrandr=$ENV{XRANDR} if defined $ENV{XRANDR};
 $version="0.1";
 $inbetween="";
+print "\n***** xrandr test suite V$version *****\n\n";
 
 # Get output configuration
 @outputs=();
@@ -30,7 +31,18 @@ while (<P>) {
   } elsif (/^\s+(\d+x\d+)\s+\((0x[0-9a-f]+)\)/) {
     my $m=$1, $x=$2;
     while (<P>) {
-      if (/^\s+v:.*?([0-9.]+)Hz\s*$/) {
+      if (/^\s+(\d+x\d+)\s+\((0x[0-9a-f]+)\)/) {
+        print "WARNING: Ignoring incomplete mode $x:$m on $o\n";
+        $m=$1, $x=$2;
+      } elsif (/^\s+v:.*?([0-9.]+)Hz\s*$/) {
+        if (defined $mode_name{$x} && $mode_name{$x} ne "$m\@$1") {
+	  print "WARNING: Ignoring mode $x:$m\@$1 because $x:$mode_name{$x} already exists\n";
+	  last;
+	}
+	if (defined $modes{"$o:$x"}) {
+	  print "WARNING: Ignoring duplicate mode $x on $o\n";
+	  last;
+	}
 	$mode_name{$x}="$m\@$1";
 	push @{$out_modes{$o}}, $x;
 	$modes{"$o:$x"}=$x;
@@ -45,7 +57,6 @@ close P;
 @outputs=(@outputs,@outputs_unknown) if @outputs < 2;
 
 # preamble
-print "\n***** xrandr test suite V$version *****\n\n";
 if ($ARGV[0] eq "-w") {
   print "Waiting for keypress after each test for manual verification.\n\n";
   $inbetween='print "    Press <Return> to continue...\n"; $_=<STDIN>';
@@ -80,9 +91,11 @@ $b=$outputs[1];
 
 # For each resolution only a single refresh rate should be used in order to
 # reduce ambiguities. For that we need to find unused modes. The %used hash is
-# used to track used ones. All references point to <width>x<height>@<refresh>.
+# used to track used ones. All references point to <id>.
+#   <output>:<id>
 #   <output>:<width>x<height>@<refresh>
 #   <output>:<width>x<height>
+#   <id>
 #   <width>x<height>@<refresh>
 #   <width>x<height>
 %used=();
@@ -208,7 +221,10 @@ sub t {
         $c=$1;
       } elsif (/^\s+$m\s+\($x\)/) {
         while (<P>) {
-	  if (/^\s+v:.*?([0-9.]+)Hz\s*$/) {
+          if (/^\s+\d+x\d+\s/) {
+	    $r="$r  $o: x:$m\@?($c)";
+	    last;
+	  } elsif (/^\s+v:.*?([0-9.]+)Hz\s*$/) {
             $r="$r  $o: $x:$m\@$1($c)";
 	    last;
 	  }

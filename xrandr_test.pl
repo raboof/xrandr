@@ -238,7 +238,7 @@ sub t {
       }
     }
     for $o (sort keys %r) {
-      $r .= "  $o:$r{$o}";
+      $r .= "  $o: $r{$o}";
     }
     close P;
   } else {

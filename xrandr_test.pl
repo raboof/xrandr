@@ -29,7 +29,8 @@ while (<P>) {
     push @outputs_unknown, $o if $2 eq "unknown connection";
     $out_modes{$o}=[];
   } elsif (/^\s+(\d+x\d+)\s+\((0x[0-9a-f]+)\)/) {
-    my $m=$1, $x=$2;
+    my $m=$1;
+    my $x=$2;
     while (<P>) {
       if (/^\s+(\d+x\d+)\s+\((0x[0-9a-f]+)\)/) {
         print "WARNING: Ignoring incomplete mode $x:$m on $o\n";
@@ -195,17 +196,19 @@ sub t {
   my $name=$_[0];
   my $expect=$_[1];
   my $args=$_[2];
-  print "*** $name:\n";
+  print "*** $name:  $args\n";
   print "?   $expect\n" if $expect ne "";
   if ($name eq $prepare) {
     print "->  Prepared to run test\n\nRun test now with\n$xrandr --verbose $args\n\n";
     exit 0;
   }
-  my $r = "", $out="";
+  my %r   = ();
+  my $r   = "";
+  my $out = "";
   if (system ("$xrandr --verbose $args") == 0) {
     # Determine active configuration
     open P, "$xrandr --verbose|" or die "$xrandr";
-    my $o, $c, $m, $x;
+    my ($o, $c, $m, $x);
     while (<P>) {
       $out.=$_;
       if (/^\S/) {
@@ -221,15 +224,19 @@ sub t {
         $c=$1;
       } elsif (/^\s+$m\s+\($x\)/) {
         while (<P>) {
+	  $out.=$_;
           if (/^\s+\d+x\d+\s/) {
-	    $r="$r  $o: x:$m\@?($c)";
+	    $r{$o}="$r{$o} $x:$m\@?($c)";
 	    last;
 	  } elsif (/^\s+v:.*?([0-9.]+)Hz\s*$/) {
-            $r="$r  $o: $x:$m\@$1($c)";
+            $r{$o}="$r{$o} $x:$m\@$1($c)";
 	    last;
 	  }
 	}
       }
+    }
+    for $o (sort keys %r) {
+      $r .= "  $o:$r{$o}";
     }
     close P;
   } else {

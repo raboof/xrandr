@@ -226,10 +226,12 @@ sub t {
         while (<P>) {
 	  $out.=$_;
           if (/^\s+\d+x\d+\s/) {
-	    $r{$o}="$r{$o} $x:$m\@?($c)";
+	    $r{$o}="$x:$m\@?($c)" unless defined $r{$o};
+	    # we don't have to reparse this - something is wrong anyway,
+	    # and it probably is no relevant resolution as well
 	    last;
 	  } elsif (/^\s+v:.*?([0-9.]+)Hz\s*$/) {
-            $r{$o}="$r{$o} $x:$m\@$1($c)";
+            $r{$o}="$x:$m\@$1($c)";
 	    last;
 	  }
 	}

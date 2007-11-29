@@ -13,6 +13,14 @@ $version="0.1";
 $inbetween="";
 print "\n***** xrandr test suite V$version *****\n\n";
 
+# Known issues and their fixes
+%fixes=(
+ s2 => "xrandr: 307f3686",
+ s4 => "xserver: f7dd0c72",
+ s11 => "xrandr: f7aaf894",
+ s18 => "issue known, but not fixed yet"
+);
+
 # Get output configuration
 @outputs=();
 %mode_name=();
@@ -254,6 +262,12 @@ sub t {
       print "\n$out";
       print "\n->  FAILED: Test # $name:\n\n";
       print "    $xrandr --verbose $args\n\n";
+      if ($fixes{$name}) {
+        print "\nThere are known issues with some packages regarding this test.\n";
+	print "Please verify that you have at least the following git versions\n";
+	print "before reporting a bug to xorg-devel:\n\n";
+	print "    $fixes{$name}\n\n";
+      }
       exit 1;
     }
     eval $inbetween;

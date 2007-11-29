@@ -270,14 +270,14 @@ sub t {
 # So be careful with altering them. For additional tests, better add them
 # to the end of already existing tests of one part.
 
-# Part 1: Single output switching tests
-t ("-",   "",                        "$oa --off $ob --off");
+# Part 1: Single output switching tests (except for trivial explicit --crtc)
+t ("p",   "",                        "$oa --off $ob --off");
 t ("s1",  "A: $sa1(0)",              "$oa $ma1 --crtc 0");
 t ("s2",  "A: $sa1(0)  B: $sab(1)",  "$ob $mab");
 # TODO: should be A: $sab(1) someday (auto re-cloning)"
 #t ("s3",  "A: $sab(1)  B: $sab(1)",  "$oa $mab");
 t ("s3",  "A: $sab(0)  B: $sab(1)",  "$oa $mab --crtc 0");
-t ("s3a", "A: $sab(1)  B: $sab(1)",  "$oa $mab --crtc 1");
+t ("p4",  "A: $sab(1)  B: $sab(1)",  "$oa $mab --crtc 1 $ob --crtc 1");
 t ("s4",  "A: $sa2(0)  B: $sab(1)",  "$oa $ma2");
 t ("s5",  "A: $sa1(0)  B: $sab(1)",  "$oa $ma1");
 t ("s6",  "A: $sa1(0)  B: $sb1(1)",  "$ob $mb1");
@@ -286,14 +286,23 @@ t ("s8",  "A: $sab(0)  B: $sb2(1)",  "$ob $mb2");
 t ("s9",  "A: $sab(0)  B: $sb1(1)",  "$ob $mb1");
 # TODO: should be B: $sab(0) someday (auto re-cloning)"
 #t ("s10", "A: $sab(0)  B: $sab(0)",  "$ob $mab");
-t ("s10", "A: $sab(0)  B: $sab(0)",  "$ob $mab --crtc 0");
+t ("p11", "A: $sab(0)  B: $sab(0)",  "$oa --crtc 0 $ob $mab --crtc 0");
 t ("s11", "A: $sa1(1)  B: $sab(0)",  "$oa $ma1");
 t ("s12", "A: $sa1(1)  B: $sb1(0)",  "$ob $mb1");
 t ("s13", "A: $sa1(1)  B: $sab(0)",  "$ob $mab");
 t ("s14", "A: $sa2(1)  B: $sab(0)",  "$oa $ma2");
 t ("s15", "A: $sa1(1)  B: $sab(0)",  "$oa $ma1");
+t ("p16", "A: $sab(0)  B: $sab(0)",  "$oa $mab --crtc 0 $ob --crtc 0");
+t ("s16", "A: $sab(1)  B: $sab(0)",  "$oa --pos 10x0");
+t ("p17", "A: $sab(0)  B: $sab(0)",  "$oa --crtc 0 $ob --crtc 0");
+t ("s17", "A: $sab(0)  B: $sab(1)",  "$ob --pos 10x0");
+t ("p18", "A: $sab(0)  B: $sab(0)",  "$oa --crtc 0 $ob --crtc 0");
+# TODO: s18-s19 are known to fail
+t ("s18", "A: $sab(1)  B: $sab(0)",  "$oa --crtc 1");
+t ("p19", "A: $sab(1)  B: $sab(1)",  "$oa --crtc 1 $ob --crtc 1");
+t ("s19", "A: $sab(0)  B: $sab(1)",  "$oa --pos 10x0");
 
-# Part 2: Dual output switching tests
+# Part 2: Complex dual output switching tests
 
 # Done
 

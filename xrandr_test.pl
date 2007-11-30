@@ -317,6 +317,9 @@ t ("p19", "A: $sab(1)  B: $sab(1)",  "$oa --crtc 1 $ob --crtc 1");
 t ("s19", "A: $sab(0)  B: $sab(1)",  "$oa --pos 10x0");
 
 # Part 2: Complex dual output switching tests
+# TODO: d1 is known to fail
+t ("pd1", "A: $sab(0)",              "$oa --crtc 0 $ob --off");
+t ("d1",  "B: $sab(0)",              "$oa --off $ob $mab");
 
 # Done
 

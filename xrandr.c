@@ -1732,9 +1732,12 @@ main (int argc, char **argv)
 	}
 	if (!strcmp ("--output", argv[i])) {
 	    if (++i >= argc) usage();
-	    output = add_output ();
 
-	    set_name (&output->output, argv[i], name_string|name_xid);
+	    output = find_output_by_name (argv[i]);
+	    if (!output) {
+		output = add_output ();
+		set_name (&output->output, argv[i], name_string|name_xid);
+	    }
 	    
 	    setit_1_2 = True;
 	    continue;

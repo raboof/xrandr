@@ -1241,7 +1241,7 @@ mark_changing_crtcs (void)
  * Test whether 'crtc' can be used for 'output'
  */
 Bool
-check_crtc_for_output (crtc_t *crtc, output_t *output)
+check_crtc_for_output (crtc_t *crtc, output_t *output, Bool ignore_state)
 {
     int		c;
     int		l;
@@ -1271,6 +1271,9 @@ check_crtc_for_output (crtc_t *crtc, output_t *output)
 	if (l == output->output_info->nclone) 
 	    return False;
     }
+
+    if (ignore_state)
+	return True;
 
     if (crtc->noutput)
     {
@@ -1313,7 +1316,7 @@ find_crtc_for_output (output_t *output)
 	crtc = find_crtc_by_xid (output->output_info->crtcs[c]);
 	if (!crtc) fatal ("cannot find crtc 0x%x\n", output->output_info->crtcs[c]);
 
-	if (check_crtc_for_output (crtc, output))
+	if (check_crtc_for_output (crtc, output, False))
 	    return crtc;
     }
     return NULL;
@@ -1518,7 +1521,7 @@ pick_crtcs_score (output_t *outputs)
 	
 	/* reset crtc allocation for following outputs */
 	disable_outputs (outputs);
-	if (!check_crtc_for_output (crtc, output))
+	if (!check_crtc_for_output (crtc, output, True))
 	    continue;
 	
 	my_score = 1000;

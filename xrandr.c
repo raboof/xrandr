@@ -157,6 +157,17 @@ fatal (const char *format, ...)
     /*NOTREACHED*/
 }
 
+static void
+warning (const char *format, ...)
+{
+    va_list ap;
+    
+    va_start (ap, format);
+    fprintf (stderr, "%s: ", program_name);
+    vfprintf (stderr, format, ap);
+    va_end (ap);
+}
+
 static char *
 rotation_name (Rotation rotation)
 {
@@ -207,6 +218,7 @@ typedef enum _changes {
     changes_automatic = (1 << 6),
     changes_refresh = (1 << 7),
     changes_property = (1 << 8),
+    changes_transform = (1 << 9),
 } changes_t;
 
 typedef enum _name_kind {
@@ -240,6 +252,8 @@ struct _crtc {
     Rotation	    rotation;
     output_t	    **outputs;
     int		    noutput;
+    XTransform	    current_transform, current_inverse;
+    XTransform	    pending_transform, pending_inverse;
 };
 
 struct _output_prop {
@@ -275,6 +289,7 @@ struct _output {
     Rotation	    rotation;
     
     Bool    	    automatic;
+    XTransform	    transform, inverse;
 };
 
 typedef enum _umode_action {
@@ -686,6 +701,17 @@ crtc_can_use_rotation (crtc_t *crtc, Rotation rotation)
     return False;
 }
 
+static Bool
+crtc_can_use_transform (crtc_t *crtc, XTransform *transform)
+{
+    int	major, minor;
+
+    XRRQueryVersion (dpy, &major, &minor);
+    if (major > 1 || (major == 1 && minor >= 3))
+	return True;
+    return False;
+}
+
 /*
  * Report only rotations that are supported by all crtcs
  */
@@ -737,8 +763,8 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 {
     /* sanity check output info */
     if (output_info->connection != RR_Disconnected && !output_info->nmode)
-	fatal ("Output %s is not disconnected but has no modes\n",
-	       output_info->name);
+	warning ("Output %s is not disconnected but has no modes\n",
+		 output_info->name);
     
     /* set output name and info */
     if (!(output->output.kind & name_xid))
@@ -843,6 +869,24 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 	       output->output.string,
 	       rotation_name (output->rotation),
 	       reflection_name (output->rotation));
+
+    /* set transformation */
+    if (!(output->changes & changes_transform))
+    {
+	if (output->crtc_info)
+	{
+	    output->transform = output->crtc_info->current_transform;
+	    output->inverse = output->crtc_info->current_inverse;
+	}
+	else
+	{
+	    int	 x;
+	    memset (&output->transform, '\0', sizeof (output->transform));
+	    memset (&output->inverse, '\0', sizeof (output->inverse));
+	    for (x = 0; x < 3; x++)
+		output->transform.matrix[x][x] = output->inverse.matrix[x][x] = XDoubleToFixed (1.0);
+	}
+    }
 }
     
 static void
@@ -870,6 +914,7 @@ get_crtcs (void)
     for (c = 0; c < res->ncrtc; c++)
     {
 	XRRCrtcInfo *crtc_info = XRRGetCrtcInfo (dpy, res, res->crtcs[c]);
+	int	    x;
 	set_name_xid (&crtcs[c].crtc, res->crtcs[c]);
 	set_name_index (&crtcs[c].crtc, c);
 	if (!crtc_info) fatal ("could not get crtc 0x%x information", res->crtcs[c]);
@@ -881,6 +926,19 @@ get_crtcs (void)
 	    crtcs[c].y = 0;
 	    crtcs[c].rotation = RR_Rotate_0;
 	}
+#if RANDR_MAJOR > 1 || RANDR_MINOR >= 3
+	XRRGetCrtcTransform (dpy, res->crtcs[c],
+			     NULL, NULL,
+			     &crtcs[c].current_transform,
+			     &crtcs[c].current_inverse);
+#else
+	memset (&crtcs[c].current_transform, '\0', sizeof (crtcs[c].current_transform));
+	memset (&crtcs[c].current_inverse, '\0', sizeof (crtcs[c].current_inverse));
+	for (x = 0; x < 3; x++)
+	    crtcs[c].current_transform.matrix[x][x] = crtcs[c].current_inverse.matrix[x][x] = XDoubleToFixed (1.0);
+#endif
+	crtcs[c].pending_transform = crtcs[c].current_transform;
+	crtcs[c].pending_inverse = crtcs[c].current_inverse;
     }
 }
 
@@ -896,6 +954,8 @@ crtc_add_output (crtc_t *crtc, output_t *output)
 	crtc->y = output->y;
 	crtc->rotation = output->rotation;
 	crtc->mode_info = output->mode_info;
+	crtc->pending_transform = output->transform;
+	crtc->pending_inverse = output->inverse;
     }
     if (!crtc->outputs) fatal ("out of memory");
     crtc->outputs[crtc->noutput++] = output;
@@ -925,6 +985,16 @@ crtc_disable (crtc_t *crtc)
 			     0, 0, None, RR_Rotate_0, NULL, 0);
 }
 
+static void
+crtc_set_transform (crtc_t *crtc, XTransform *transform, XTransform *inverse)
+{
+    int	major, minor;
+
+    XRRQueryVersion (dpy, &major, &minor);
+    if (major > 1 || (major == 1 && minor >= 3))
+	XRRSetCrtcTransform (dpy, crtc->crtc.xid, transform, inverse);
+}
+
 static Status
 crtc_revert (crtc_t *crtc)
 {
@@ -935,6 +1005,8 @@ crtc_revert (crtc_t *crtc)
 	
     if (dryrun)
 	return RRSetConfigSuccess;
+
+    crtc_set_transform (crtc, &crtc->current_transform, &crtc->current_inverse);
     return XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
 			    crtc_info->x, crtc_info->y,
 			    crtc_info->mode, crtc_info->rotation,
@@ -970,9 +1042,12 @@ crtc_apply (crtc_t *crtc)
     if (dryrun)
 	s = RRSetConfigSuccess;
     else
+    {
+	crtc_set_transform (crtc, &crtc->pending_transform, &crtc->pending_inverse);
 	s = XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
 			      crtc->x, crtc->y, mode, crtc->rotation,
 			      rr_outputs, crtc->noutput);
+    }
     free (rr_outputs);
     return s;
 }
@@ -1285,6 +1360,10 @@ check_crtc_for_output (crtc_t *crtc, output_t *output, Bool ignore_state)
 	if (crtc->y != output->y)
 	    return False;
 	if (crtc->rotation != output->rotation)
+	    return False;
+	if (memcmp (&crtc->current_transform, &output->transform, sizeof (XTransform)) != 0)
+	    return False;
+	if (memcmp (&crtc->current_inverse, &output->inverse, sizeof (XTransform)) != 0)
 	    return False;
     }
     else if (crtc->crtc_info->noutput)
@@ -1855,6 +1934,23 @@ main (int argc, char **argv)
 	    setit_1_2 = True;
 	    continue;
 	}
+	if (!strcmp ("--scale", argv[i]))
+	{
+	    double  sx, sy;
+	    if (++i>=argc) usage();
+	    if (sscanf (argv[i], "%lfx%lf", &sx, &sy) != 2)
+		usage ();
+	    memset (&output->transform, '\0', sizeof (output->transform));
+	    memset (&output->inverse, '\0', sizeof (output->inverse));
+	    output->transform.matrix[0][0] = XDoubleToFixed (1/sx);
+	    output->transform.matrix[1][1] = XDoubleToFixed (1/sy);
+	    output->transform.matrix[2][2] = XDoubleToFixed (1.0);
+	    output->inverse.matrix[0][0] = XDoubleToFixed (sx);
+	    output->inverse.matrix[1][1] = XDoubleToFixed (sy);
+	    output->inverse.matrix[2][2] = XDoubleToFixed (1.0);
+	    output->changes |= changes_transform;
+	    continue;
+	}
 	if (!strcmp ("--off", argv[i])) {
 	    if (!output) usage();
 	    set_name_xid (&output->mode, None);
@@ -2338,6 +2434,28 @@ main (int argc, char **argv)
 		}
 		printf ("\n");
 	    }
+	    if (verbose)
+	    {
+		int x, y;
+
+		printf ("\tTransform: ");
+		for (y = 0; y < 3; y++)
+		{
+		    for (x = 0; x < 3; x++)
+			printf (" %f", XFixedToDouble (output->transform.matrix[y][x]));
+		    if (y < 2)
+			printf ("\n\t           ");
+		}
+		printf ("\n\tInverse:   ");
+		for (y = 0; y < 3; y++)
+		{
+		    for (x = 0; x < 3; x++)
+			printf (" %f", XFixedToDouble (output->inverse.matrix[y][x]));
+		    if (y < 2)
+			printf ("\n\t           ");
+		}
+		printf ("\n");
+	    }
 	    if (verbose || properties)
 	    {
 		props = XRRListOutputProperties (dpy, output->output.xid,
@@ -2405,12 +2523,14 @@ main (int argc, char **argv)
 			    }
 			}
 			printf("\n");
-			
 		    } else if (actual_format == 8) {
 			printf ("\t\t%s: %s%s\n", XGetAtomName (dpy, props[j]),
 				prop, bytes_after ? "..." : "");
 		    } else {
-			printf ("\t\t%s: ????\n", XGetAtomName (dpy, props[j]));
+			char	*type = actual_type ? XGetAtomName (dpy, actual_type) : "none";
+			printf ("\t\t%s: %s(%d) (format %d items %d) ????\n",
+				XGetAtomName (dpy, props[j]),
+				type, actual_type, actual_format, nitems);
 		    }
 
 		    free(propinfo);

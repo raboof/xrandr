@@ -238,8 +238,17 @@ typedef struct {
 
 typedef struct _crtc crtc_t;
 typedef struct _output	output_t;
+typedef struct _transform transform_t;
 typedef struct _umode	umode_t;
 typedef struct _output_prop output_prop_t;
+
+struct _transform {
+    XTransform	    transform;
+    XTransform	    inverse;
+    char	    *filter;
+    int		    nparams;
+    XFixed	    *params;
+};
 
 struct _crtc {
     name_t	    crtc;
@@ -252,8 +261,7 @@ struct _crtc {
     Rotation	    rotation;
     output_t	    **outputs;
     int		    noutput;
-    XTransform	    current_transform, current_inverse;
-    XTransform	    pending_transform, pending_inverse;
+    transform_t	    current_transform, pending_transform;
 };
 
 struct _output_prop {
@@ -289,7 +297,7 @@ struct _output {
     Rotation	    rotation;
     
     Bool    	    automatic;
-    XTransform	    transform, inverse;
+    transform_t	    transform;
 };
 
 typedef enum _umode_action {
@@ -454,6 +462,58 @@ set_name (name_t *name, char *string, name_kind_t valid)
 	set_name_string (name, string);
     else
 	usage ();
+}
+
+static void
+init_transform (transform_t *transform)
+{
+    int x;
+    memset (&transform->transform, '\0', sizeof (transform->transform));
+    memset (&transform->inverse, '\0', sizeof (transform->inverse));
+    for (x = 0; x < 3; x++)
+	transform->transform.matrix[x][x] = transform->inverse.matrix[x][x] = XDoubleToFixed (1.0);
+    transform->filter = "";
+    transform->nparams = 0;
+    transform->params = NULL;
+}
+
+static void
+set_transform (transform_t  *dest,
+	       XTransform   *transform,
+	       XTransform   *inverse,
+	       char	    *filter,
+	       XFixed	    *params,
+	       int	    nparams)
+{
+    dest->transform = *transform;
+    dest->inverse = *inverse;
+    dest->filter = strdup (filter);
+    dest->nparams = nparams;
+    dest->params = malloc (nparams * sizeof (XFixed));
+    memcpy (dest->params, params, nparams * sizeof (XFixed));
+}
+
+static void
+copy_transform (transform_t *dest, transform_t *src)
+{
+    set_transform (dest, &src->transform, &src->inverse,
+		   src->filter, src->params, src->nparams);
+}
+
+static Bool
+equal_transform (transform_t *a, transform_t *b)
+{
+    if (memcmp (&a->transform, &b->transform, sizeof (XTransform)) != 0)
+	return False;
+    if (memcmp (&a->inverse, &b->inverse, sizeof (XTransform)) != 0)
+	return False;
+    if (strcmp (a->filter, b->filter) != 0)
+	return False;
+    if (a->nparams != b->nparams)
+	return False;
+    if (memcmp (a->params, b->params, a->nparams * sizeof (XFixed)) != 0)
+	return False;
+    return True;
 }
 
 static output_t *
@@ -874,18 +934,9 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
     if (!(output->changes & changes_transform))
     {
 	if (output->crtc_info)
-	{
-	    output->transform = output->crtc_info->current_transform;
-	    output->inverse = output->crtc_info->current_inverse;
-	}
+	    copy_transform (&output->transform, &output->crtc_info->current_transform);
 	else
-	{
-	    int	 x;
-	    memset (&output->transform, '\0', sizeof (output->transform));
-	    memset (&output->inverse, '\0', sizeof (output->inverse));
-	    for (x = 0; x < 3; x++)
-		output->transform.matrix[x][x] = output->inverse.matrix[x][x] = XDoubleToFixed (1.0);
-	}
+	    init_transform (&output->transform);
     }
 }
     
@@ -914,6 +965,9 @@ get_crtcs (void)
     for (c = 0; c < res->ncrtc; c++)
     {
 	XRRCrtcInfo *crtc_info = XRRGetCrtcInfo (dpy, res, res->crtcs[c]);
+#if RANDR_MAJOR > 1 || RANDR_MINOR >= 3
+	XRRCrtcTransformAttributes  *attr;
+#endif
 	int	    x;
 	set_name_xid (&crtcs[c].crtc, res->crtcs[c]);
 	set_name_index (&crtcs[c].crtc, c);
@@ -927,19 +981,23 @@ get_crtcs (void)
 	    crtcs[c].rotation = RR_Rotate_0;
 	}
 #if RANDR_MAJOR > 1 || RANDR_MINOR >= 3
-	XRRGetCrtcTransform (dpy, res->crtcs[c],
-			     NULL, NULL,
-			     &crtcs[c].current_transform,
-			     &crtcs[c].current_inverse);
-#else
-	memset (&crtcs[c].current_transform, '\0', sizeof (crtcs[c].current_transform));
-	memset (&crtcs[c].current_inverse, '\0', sizeof (crtcs[c].current_inverse));
-	for (x = 0; x < 3; x++)
-	    crtcs[c].current_transform.matrix[x][x] = crtcs[c].current_inverse.matrix[x][x] = XDoubleToFixed (1.0);
+	XRRGetCrtcTransform (dpy, res->crtcs[c], &attr);
+	if (attr) {
+	    set_transform (&crtcs[c].current_transform,
+			   &attr->currentTransform,
+			   &attr->currentInverse,
+			   attr->currentFilter,
+			   attr->currentParams,
+			   attr->currentNparams);
+	    XFree (attr);
+	}
+	else
 #endif
-	crtcs[c].pending_transform = crtcs[c].current_transform;
-	crtcs[c].pending_inverse = crtcs[c].current_inverse;
-    }
+	{
+	    init_transform (&crtcs[c].current_transform);
+	}
+	copy_transform (&crtcs[c].pending_transform, &crtcs[c].current_transform);
+   }
 }
 
 static void
@@ -954,9 +1012,8 @@ crtc_add_output (crtc_t *crtc, output_t *output)
 	crtc->y = output->y;
 	crtc->rotation = output->rotation;
 	crtc->mode_info = output->mode_info;
-	crtc->pending_transform = output->transform;
-	crtc->pending_inverse = output->inverse;
-    }
+	copy_transform (&crtc->pending_transform, &output->transform);
+   }
     if (!crtc->outputs) fatal ("out of memory");
     crtc->outputs[crtc->noutput++] = output;
 }
@@ -986,13 +1043,18 @@ crtc_disable (crtc_t *crtc)
 }
 
 static void
-crtc_set_transform (crtc_t *crtc, XTransform *transform, XTransform *inverse)
+crtc_set_transform (crtc_t *crtc, transform_t *transform)
 {
     int	major, minor;
 
     XRRQueryVersion (dpy, &major, &minor);
     if (major > 1 || (major == 1 && minor >= 3))
-	XRRSetCrtcTransform (dpy, crtc->crtc.xid, transform, inverse);
+	XRRSetCrtcTransform (dpy, crtc->crtc.xid,
+			     &transform->transform,
+			     &transform->inverse,
+			     transform->filter,
+			     transform->params,
+			     transform->nparams);
 }
 
 static Status
@@ -1006,7 +1068,7 @@ crtc_revert (crtc_t *crtc)
     if (dryrun)
 	return RRSetConfigSuccess;
 
-    crtc_set_transform (crtc, &crtc->current_transform, &crtc->current_inverse);
+    crtc_set_transform (crtc, &crtc->current_transform);
     return XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
 			    crtc_info->x, crtc_info->y,
 			    crtc_info->mode, crtc_info->rotation,
@@ -1043,7 +1105,7 @@ crtc_apply (crtc_t *crtc)
 	s = RRSetConfigSuccess;
     else
     {
-	crtc_set_transform (crtc, &crtc->pending_transform, &crtc->pending_inverse);
+	crtc_set_transform (crtc, &crtc->pending_transform);
 	s = XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
 			      crtc->x, crtc->y, mode, crtc->rotation,
 			      rr_outputs, crtc->noutput);
@@ -1361,9 +1423,7 @@ check_crtc_for_output (crtc_t *crtc, output_t *output, Bool ignore_state)
 	    return False;
 	if (crtc->rotation != output->rotation)
 	    return False;
-	if (memcmp (&crtc->current_transform, &output->transform, sizeof (XTransform)) != 0)
-	    return False;
-	if (memcmp (&crtc->current_inverse, &output->inverse, sizeof (XTransform)) != 0)
+	if (!equal_transform (&crtc->current_transform, &output->transform))
 	    return False;
     }
     else if (crtc->crtc_info->noutput)
@@ -1940,14 +2000,19 @@ main (int argc, char **argv)
 	    if (++i>=argc) usage();
 	    if (sscanf (argv[i], "%lfx%lf", &sx, &sy) != 2)
 		usage ();
-	    memset (&output->transform, '\0', sizeof (output->transform));
-	    memset (&output->inverse, '\0', sizeof (output->inverse));
-	    output->transform.matrix[0][0] = XDoubleToFixed (1/sx);
-	    output->transform.matrix[1][1] = XDoubleToFixed (1/sy);
-	    output->transform.matrix[2][2] = XDoubleToFixed (1.0);
-	    output->inverse.matrix[0][0] = XDoubleToFixed (sx);
-	    output->inverse.matrix[1][1] = XDoubleToFixed (sy);
-	    output->inverse.matrix[2][2] = XDoubleToFixed (1.0);
+	    init_transform (&output->transform);
+	    output->transform.transform.matrix[0][0] = XDoubleToFixed (1/sx);
+	    output->transform.transform.matrix[1][1] = XDoubleToFixed (1/sy);
+	    output->transform.transform.matrix[2][2] = XDoubleToFixed (1.0);
+	    output->transform.inverse.matrix[0][0] = XDoubleToFixed (sx);
+	    output->transform.inverse.matrix[1][1] = XDoubleToFixed (sy);
+	    output->transform.inverse.matrix[2][2] = XDoubleToFixed (1.0);
+	    if (sx != 1 || sy != 1)
+		output->transform.filter = "bilinear";
+	    else
+		output->transform.filter = "nearest";
+	    output->transform.nparams = 0;
+	    output->transform.params = NULL;
 	    output->changes |= changes_transform;
 	    continue;
 	}
@@ -2442,7 +2507,7 @@ main (int argc, char **argv)
 		for (y = 0; y < 3; y++)
 		{
 		    for (x = 0; x < 3; x++)
-			printf (" %f", XFixedToDouble (output->transform.matrix[y][x]));
+			printf (" %f", XFixedToDouble (output->transform.transform.matrix[y][x]));
 		    if (y < 2)
 			printf ("\n\t           ");
 		}
@@ -2450,10 +2515,12 @@ main (int argc, char **argv)
 		for (y = 0; y < 3; y++)
 		{
 		    for (x = 0; x < 3; x++)
-			printf (" %f", XFixedToDouble (output->inverse.matrix[y][x]));
+			printf (" %f", XFixedToDouble (output->transform.inverse.matrix[y][x]));
 		    if (y < 2)
 			printf ("\n\t           ");
 		}
+		if (output->transform.filter)
+		    printf ("\n\t           filter: %s", output->transform.filter);
 		printf ("\n");
 	    }
 	    if (verbose || properties)

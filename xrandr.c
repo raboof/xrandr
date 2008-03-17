@@ -207,6 +207,18 @@ typedef enum _relation {
     left_of, right_of, above, below, same_as,
 } relation_t;
 
+typedef struct {
+    int	    x, y, width, height;
+} rectangle_t;
+
+typedef struct {
+    int	    x1, y1, x2, y2;
+} box_t;
+
+typedef struct {
+    int	    x, y;
+} point_t;
+
 typedef enum _changes {
     changes_none = 0,
     changes_crtc = (1 << 0),
@@ -374,6 +386,81 @@ mode_width (XRRModeInfo *mode_info, Rotation rotation)
     default:
 	return 0;
     }
+}
+
+Bool
+transform_point (XTransform *transform, double *xp, double *yp)
+{
+    double  vector[3];
+    double  result[3];
+    int	    i, j;
+    double  partial, v;
+
+    vector[0] = *xp;
+    vector[1] = *yp;
+    vector[2] = 1;
+    for (j = 0; j < 3; j++)
+    {
+	v = 0;
+	for (i = 0; i < 3; i++)
+	    v += (XFixedToDouble (transform->matrix[j][i]) * vector[i]);
+	if (v > 32767 || v < -32767)
+	    return False;
+	result[j] = v;
+    }
+    if (!result[2])
+	return False;
+    for (j = 0; j < 2; j++)
+	vector[j] = result[j] / result[2];
+    *xp = vector[0];
+    *yp = vector[1];
+    return True;
+}
+
+Bool
+path_bounds (XTransform *transform, point_t *points, int npoints, box_t *box)
+{
+    int	    i;
+    box_t   point;
+
+    for (i = 0; i < npoints; i++) {
+	double	x, y;
+	x = points[i].x;
+	y = points[i].y;
+	transform_point (transform, &x, &y);
+	point.x1 = floor (x);
+	point.y1 = floor (y);
+	point.x2 = ceil (x);
+	point.y2 = ceil (y);
+	if (i == 0)
+	    *box = point;
+	else {
+	    if (point.x1 < box->x1) box->x1 = point.x1;
+	    if (point.y1 < box->y1) box->y1 = point.y1;
+	    if (point.x2 > box->x2) box->x2 = point.x2;
+	    if (point.y2 > box->y2) box->y2 = point.y2;
+	}
+    }
+}
+
+static void
+mode_geometry (XRRModeInfo *mode_info, Rotation rotation,
+	       XTransform *transform,
+	       box_t *bounds)
+{
+    point_t rect[4];
+    int	width = mode_width (mode_info, rotation);
+    int height = mode_height (mode_info, rotation);
+
+    rect[0].x = 0;
+    rect[0].y = 0;
+    rect[1].x = width;
+    rect[1].y = 0;
+    rect[2].x = width;
+    rect[2].y = height;
+    rect[3].x = 0;
+    rect[3].y = height;
+    path_bounds (transform, rect, 4, bounds);
 }
 
 /* v refresh frequency in Hz */
@@ -1215,16 +1302,21 @@ apply (void)
 	{
 	    XRRModeInfo	*old_mode = find_mode_by_xid (crtc_info->mode);
 	    int x, y, w, h;
+	    box_t bounds;
 
 	    if (!old_mode) 
 		panic (RRSetConfigFailed, crtc);
 	    
 	    /* old position and size information */
-	    x = crtc_info->x;
-	    y = crtc_info->y;
-	    w = mode_width (old_mode, crtc_info->rotation);
-	    h = mode_height (old_mode, crtc_info->rotation);
-	    
+	    mode_geometry (old_mode, crtc_info->rotation,
+			   &crtc->current_transform.transform,
+			   &bounds);
+
+	    x = crtc_info->x + bounds.x1;
+	    y = crtc_info->y + bounds.y1;
+	    w = bounds.x2 - bounds.x1;
+	    h = bounds.y2 - bounds.y1;
+
 	    /* if it fits, skip it */
 	    if (x + w <= fb_width && y + h <= fb_height) 
 		continue;
@@ -1571,13 +1663,17 @@ set_screen_size (void)
     {
 	XRRModeInfo *mode_info = output->mode_info;
 	int	    x, y, w, h;
+	box_t	    bounds;
 	
 	if (!mode_info) continue;
 	
-	x = output->x;
-	y = output->y;
-	w = mode_width (mode_info, output->rotation);
-	h = mode_height (mode_info, output->rotation);
+	mode_geometry (mode_info, output->rotation,
+		       &output->transform.transform,
+		       &bounds);
+	x = output->x + bounds.x1;
+	y = output->y + bounds.y1;
+	w = bounds.x2 - bounds.x1;
+	h = bounds.y2 - bounds.y1;
 	/* make sure output fits in specified size */
 	if (fb_specified)
 	{
@@ -2421,6 +2517,8 @@ main (int argc, char **argv)
 	for (output = outputs; output; output = output->next)
 	{
 	    XRROutputInfo   *output_info = output->output_info;
+	    crtc_t	    *crtc = output->crtc_info;
+	    XRRCrtcInfo	    *crtc_info = crtc ? crtc->crtc_info : NULL;
 	    XRRModeInfo	    *mode = output->mode_info;
 	    Atom	    *props;
 	    int		    j, k, nprop;
@@ -2430,10 +2528,14 @@ main (int argc, char **argv)
 	    printf ("%s %s", output_info->name, connection[output_info->connection]);
 	    if (mode)
 	    {
-		printf (" %dx%d+%d+%d",
-			mode_width (mode, output->rotation),
-			mode_height (mode, output->rotation),
-			output->x, output->y);
+		if (crtc_info) {
+		    printf (" %dx%d+%d+%d",
+			    crtc_info->width, crtc_info->height,
+			    crtc_info->x, crtc_info->y);
+		} else {
+		    printf (" %dx%d+%d+%d",
+			    mode->width, mode->height, output->x, output->y);
+		}
 		if (verbose)
 		    printf (" (0x%x)", mode->id);
 		if (output->rotation != RR_Rotate_0 || verbose)

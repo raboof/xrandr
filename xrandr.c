@@ -2101,6 +2101,27 @@ main (int argc, char **argv)
 	    output->changes |= changes_transform;
 	    continue;
 	}
+	if (!strcmp ("--transform", argv[i])) {
+	    double  transform[3][3];
+	    int	    k, l;
+	    if (++i>=argc) usage ();
+	    if (sscanf(argv[i], "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf",
+		       &transform[0][0],&transform[0][1],&transform[0][2],
+		       &transform[1][0],&transform[1][1],&transform[1][2],
+		       &transform[2][0],&transform[2][1],&transform[2][2])
+		!= 9)
+		usage ();
+	    init_transform (&output->transform);
+	    for (k = 0; k < 3; k++)
+		for (l = 0; l < 3; l++) {
+		    output->transform.transform.matrix[k][l] = XDoubleToFixed (transform[k][l]);
+		}
+	    output->transform.filter = "bilinear";
+	    output->transform.nparams = 0;
+	    output->transform.params = NULL;
+	    output->changes |= changes_transform;
+	    continue;
+	}
 	if (!strcmp ("--off", argv[i])) {
 	    if (!output) usage();
 	    set_name_xid (&output->mode, None);

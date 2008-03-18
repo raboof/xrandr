@@ -256,7 +256,6 @@ typedef struct _output_prop output_prop_t;
 
 struct _transform {
     XTransform	    transform;
-    XTransform	    inverse;
     char	    *filter;
     int		    nparams;
     XFixed	    *params;
@@ -556,9 +555,8 @@ init_transform (transform_t *transform)
 {
     int x;
     memset (&transform->transform, '\0', sizeof (transform->transform));
-    memset (&transform->inverse, '\0', sizeof (transform->inverse));
     for (x = 0; x < 3; x++)
-	transform->transform.matrix[x][x] = transform->inverse.matrix[x][x] = XDoubleToFixed (1.0);
+	transform->transform.matrix[x][x] = XDoubleToFixed (1.0);
     transform->filter = "";
     transform->nparams = 0;
     transform->params = NULL;
@@ -567,13 +565,11 @@ init_transform (transform_t *transform)
 static void
 set_transform (transform_t  *dest,
 	       XTransform   *transform,
-	       XTransform   *inverse,
 	       char	    *filter,
 	       XFixed	    *params,
 	       int	    nparams)
 {
     dest->transform = *transform;
-    dest->inverse = *inverse;
     dest->filter = strdup (filter);
     dest->nparams = nparams;
     dest->params = malloc (nparams * sizeof (XFixed));
@@ -583,7 +579,7 @@ set_transform (transform_t  *dest,
 static void
 copy_transform (transform_t *dest, transform_t *src)
 {
-    set_transform (dest, &src->transform, &src->inverse,
+    set_transform (dest, &src->transform,
 		   src->filter, src->params, src->nparams);
 }
 
@@ -591,8 +587,6 @@ static Bool
 equal_transform (transform_t *a, transform_t *b)
 {
     if (memcmp (&a->transform, &b->transform, sizeof (XTransform)) != 0)
-	return False;
-    if (memcmp (&a->inverse, &b->inverse, sizeof (XTransform)) != 0)
 	return False;
     if (strcmp (a->filter, b->filter) != 0)
 	return False;
@@ -1072,7 +1066,6 @@ get_crtcs (void)
 	if (attr) {
 	    set_transform (&crtcs[c].current_transform,
 			   &attr->currentTransform,
-			   &attr->currentInverse,
 			   attr->currentFilter,
 			   attr->currentParams,
 			   attr->currentNparams);
@@ -1138,7 +1131,6 @@ crtc_set_transform (crtc_t *crtc, transform_t *transform)
     if (major > 1 || (major == 1 && minor >= 3))
 	XRRSetCrtcTransform (dpy, crtc->crtc.xid,
 			     &transform->transform,
-			     &transform->inverse,
 			     transform->filter,
 			     transform->params,
 			     transform->nparams);
@@ -2097,12 +2089,9 @@ main (int argc, char **argv)
 	    if (sscanf (argv[i], "%lfx%lf", &sx, &sy) != 2)
 		usage ();
 	    init_transform (&output->transform);
-	    output->transform.transform.matrix[0][0] = XDoubleToFixed (1/sx);
-	    output->transform.transform.matrix[1][1] = XDoubleToFixed (1/sy);
+	    output->transform.transform.matrix[0][0] = XDoubleToFixed (sx);
+	    output->transform.transform.matrix[1][1] = XDoubleToFixed (sy);
 	    output->transform.transform.matrix[2][2] = XDoubleToFixed (1.0);
-	    output->transform.inverse.matrix[0][0] = XDoubleToFixed (sx);
-	    output->transform.inverse.matrix[1][1] = XDoubleToFixed (sy);
-	    output->transform.inverse.matrix[2][2] = XDoubleToFixed (1.0);
 	    if (sx != 1 || sy != 1)
 		output->transform.filter = "bilinear";
 	    else
@@ -2610,14 +2599,6 @@ main (int argc, char **argv)
 		{
 		    for (x = 0; x < 3; x++)
 			printf (" %f", XFixedToDouble (output->transform.transform.matrix[y][x]));
-		    if (y < 2)
-			printf ("\n\t           ");
-		}
-		printf ("\n\tInverse:   ");
-		for (y = 0; y < 3; y++)
-		{
-		    for (x = 0; x < 3; x++)
-			printf (" %f", XFixedToDouble (output->transform.inverse.matrix[y][x]));
 		    if (y < 2)
 			printf ("\n\t           ");
 		}

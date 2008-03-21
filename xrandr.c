@@ -1670,8 +1670,8 @@ set_screen_size (void)
 	if (fb_specified)
 	{
 	    if (x + w > fb_width || y + h > fb_height)
-		fatal ("specified screen %dx%d not large enough for output %s (%dx%d+%d+%d)\n",
-		       fb_width, fb_height, output->output.string, w, h, x, y);
+		warning ("specified screen %dx%d not large enough for output %s (%dx%d+%d+%d)\n",
+			 fb_width, fb_height, output->output.string, w, h, x, y);
 	}
 	/* fit fb to output */
 	else

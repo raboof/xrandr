@@ -20,12 +20,12 @@
  * OF THIS SOFTWARE.
  */
 
-autoload Chrome;
-autoload Chrome::Box;
-autoload Chrome::Label;
-autoload Chrome::Lozenge;
+autoload Nichrome;
+autoload Nichrome::Box;
+autoload Nichrome::Label;
+autoload Nichrome::Button;
 
-extend namespace Chrome {
+extend namespace Nichrome {
     public namespace Quad {
 	public typedef quad_t;
 	public typedef widget_t + struct {
@@ -124,9 +124,9 @@ extend namespace Chrome {
 	}
 
 	protected void init (&quad_t quad,
-			     &chrome_t chrome,
+			     &nichrome_t nichrome,
 			     void (&quad_t) callback) {
-	    Widget::init (&chrome, &quad);
+	    Widget::init (&nichrome, &quad);
 	    quad.outline = outline;
 	    quad.draw = draw;
 	    quad.button = button;
@@ -148,19 +148,19 @@ extend namespace Chrome {
 	    quad.started = false;
 	}
 
-	protected *quad_t new (&chrome_t chrome, void(&quad_t) callback) {
+	protected *quad_t new (&nichrome_t nichrome, void(&quad_t) callback) {
 	    quad_t  quad;
 
-	    init (&quad, &chrome, callback);
+	    init (&quad, &nichrome, callback);
 	    return &quad;
 	}
     }
 }
-import Chrome;
-import Chrome::Box;
-import Chrome::Label;
-import Chrome::Lozenge;
-import Chrome::Quad;
+import Nichrome;
+import Nichrome::Box;
+import Nichrome::Label;
+import Nichrome::Button;
+import Nichrome::Quad;
 
 import Cairo;
 typedef real[3,3]   m_t;
@@ -366,11 +366,11 @@ void test ()
     real target_width = 1024;
     real target_height = 768;
 
-    &chrome_t	chrome = Chrome::new ("Keystone Correction", 400, 350);
+    &nichrome_t	nichrome = Nichrome::new ("Keystone Correction", 400, 350);
     (*label_t)[3]	label;
-    &label_t	space = Label::new (&chrome, "");
+    &label_t	space = Label::new (&nichrome, "");
     for (int i = 0; i < 3; i++) {
-	label[i] = Label::new (&chrome, "matrix");
+	label[i] = Label::new (&nichrome, "matrix");
 	label[i]->font = "sans-9";
     }
     void callback (&quad_t quad) {
@@ -392,7 +392,7 @@ void test ()
 	for (int i = 0; i < 3; i++)
 	    Label::relabel (label[i], text[i]);
     }
-    &quad_t	quad = Quad::new (&chrome, callback);
+    &quad_t	quad = Quad::new (&nichrome, callback);
 
     void doit (&widget_t widget, bool state)
     {
@@ -404,10 +404,10 @@ void test ()
 	}
     }
 
-    &lozenge_t	button = Lozenge::new (&chrome, "doit", doit);
-    &lozenge_t	quit = Lozenge::new (&chrome, "quit",
+    &button_t	button = Button::new (&nichrome, "doit", doit);
+    &button_t	quit = Button::new (&nichrome, "quit",
 				     void func (&widget_t w, bool state) {
-					w.chrome.running = false;
+					w.nichrome.running = false;
 				     });
 
     &box_t	hbox = Box::new (Box::dir_t.horizontal,
@@ -421,8 +421,8 @@ void test ()
 				Box::widget_item (label[2], 0),
 				Box::widget_item (&space, 0),
 				Box::widget_item (&quad, 1));
-    Chrome::set_box (&chrome, &box);
-    Chrome::main_loop (&chrome);
+    Nichrome::set_box (&nichrome, &box);
+    Nichrome::main_loop (&nichrome);
 }
 
 test ();

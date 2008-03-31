@@ -20,6 +20,7 @@
  * OF THIS SOFTWARE.
  */
 
+autoload Process;
 autoload Nichrome;
 autoload Nichrome::Box;
 autoload Nichrome::Label;
@@ -401,6 +402,14 @@ void test ()
 	    printf ("normal:  %s\n", m_print (m));
 	    printf ("inverse: %s\n", m_print (m_i));
 	    printf ("scaled:  %s\n", m_print (m_r));
+	    Process::system ("xrandr",
+			     "xrandr",
+			     "--fb",
+			     "1024x768",
+			     "--output",
+			     "LVDS",
+			     "--transform",
+			     m_print (m_r));
 	}
     }
 

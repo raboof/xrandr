@@ -448,6 +448,7 @@ void main ()
 	if (i == dim (outputs)) {
 	    File::fprintf (stderr, "%s: no enabled output \"%s\"\n",
 			   argv[0], argv[1]);
+	    exit (1);
 	}
     }
     else

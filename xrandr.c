@@ -428,7 +428,8 @@ set_name_all (name_t *name, name_t *old)
 static void
 set_name (name_t *name, char *string, name_kind_t valid)
 {
-    XID	xid;
+    unsigned int xid; /* don't make it XID (which is unsigned long):
+			 scanf() takes unsigned int */
     int index;
 
     if ((valid & name_xid) && sscanf (string, "0x%x", &xid) == 1)

@@ -96,7 +96,7 @@ reported while executing the configuration changes.
 When this option is present, or when no configuration changes are requested,
 xrandr will display the current state of the system. 
 .IP "\-\-dryrun"
-Performs all the actions specified excepted that not changes are made.
+Performs all the actions specified except that no changes are made.
 .IP "\-d, \-display \fIname\fP"
 This option selects the X display to use. Note this refers to the X
 screen abstraction, not the monitor (or output).
@@ -107,8 +107,8 @@ screen abstraction, not the monitor (or output).
 Forces the usage of the RandR version 1.1 protocol, even if a higher version
 is available.
 .IP \-\-q12
-Forces the usage of the RandR version 1.2 protocol, even the display does not
-report it as supported or a higher version is available.
+Forces the usage of the RandR version 1.2 protocol, even if the display does
+not report it as supported or a higher version is available.
 .SH "RandR version 1.2 options"
 These options are only available for X server supporting RandR version 1.2
 or newer.
@@ -134,7 +134,7 @@ This option does the former. The \fImode\fP is specified using the ModeLine
 syntax for xorg.conf: hdisp hsyncstart hsyncend htotal vdisp vsyncstart
 vsyncend vtotal \fIflags\fP. \fIflags\fP can be zero or more of +HSync,
 -HSync, +VSync, -VSync, Interlace, DoubleScan, CSync, +CSync, -CSync. Several
-tools permit to compute the usual modeline from a heigh, width, and refresh
+tools permit to compute the usual modeline from a height, width, and refresh
 rate, for instance you can use \fBcvt\fR.
 .IP "\-\-rmmode \fIname\fP"
 This removes a mode from the server if it is otherwise unused.

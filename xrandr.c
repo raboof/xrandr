@@ -1062,8 +1062,7 @@ get_crtcs (void)
 	    crtcs[c].rotation = RR_Rotate_0;
 	}
 #if RANDR_MAJOR > 1 || RANDR_MINOR >= 3
-	XRRGetCrtcTransform (dpy, res->crtcs[c], &attr);
-	if (attr) {
+	if (XRRGetCrtcTransform (dpy, res->crtcs[c], &attr) && attr) {
 	    set_transform (&crtcs[c].current_transform,
 			   &attr->currentTransform,
 			   attr->currentFilter,

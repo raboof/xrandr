@@ -129,6 +129,8 @@ usage(void)
     fprintf(stderr, "      --below <output>\n");
     fprintf(stderr, "      --same-as <output>\n");
     fprintf(stderr, "      --set <property> <value>\n");
+    fprintf(stderr, "      --scale <x>x<y>\n");
+    fprintf(stderr, "      --transform <a>,<b>,<c>,<d>,<e>,<f>,<g>,<h>,<i>\n");
     fprintf(stderr, "      --off\n");
     fprintf(stderr, "      --crtc <crtc>\n");
     fprintf(stderr, "  --newmode <name> <clock MHz>\n");

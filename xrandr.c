@@ -133,6 +133,7 @@ usage(void)
     fprintf(stderr, "      --transform <a>,<b>,<c>,<d>,<e>,<f>,<g>,<h>,<i>\n");
     fprintf(stderr, "      --off\n");
     fprintf(stderr, "      --crtc <crtc>\n");
+    fprintf(stderr, "      --panning <w>x<h>[+<x>+<y>[/<track:w>x<h>+<x>+<y>[/<border:l>/<t>/<r>/<b>]]]\n");
     fprintf(stderr, "  --newmode <name> <clock MHz>\n");
     fprintf(stderr, "            <hdisp> <hsync-start> <hsync-end> <htotal>\n");
     fprintf(stderr, "            <vdisp> <vsync-start> <vsync-end> <vtotal>\n");
@@ -233,6 +234,7 @@ typedef enum _changes {
     changes_refresh = (1 << 7),
     changes_property = (1 << 8),
     changes_transform = (1 << 9),
+    changes_panning = (1 << 10),
 } changes_t;
 
 typedef enum _name_kind {
@@ -269,6 +271,7 @@ struct _crtc {
     XRRCrtcInfo	    *crtc_info;
 
     XRRModeInfo	    *mode_info;
+    XRRPanning      *panning_info;
     int		    x;
     int		    y;
     Rotation	    rotation;
@@ -309,6 +312,8 @@ struct _output {
     int		    x, y;
     Rotation	    rotation;
     
+    char            *panning;
+
     Bool    	    automatic;
     transform_t	    transform;
 };
@@ -358,6 +363,7 @@ static char	*dpi_output = NULL;
 static Bool	dryrun = False;
 static int	minWidth, maxWidth, minHeight, maxHeight;
 static Bool    	has_1_2 = False;
+static Bool    	has_1_3 = False;
 
 static int
 mode_height (XRRModeInfo *mode_info, Rotation rotation)
@@ -1053,10 +1059,16 @@ get_crtcs (void)
 	XRRCrtcTransformAttributes  *attr;
 #endif
 	int	    x;
+	XRRPanning  *panning_info = NULL;
+
+	if (has_1_3)
+	    panning_info = XRRGetPanning  (dpy, res, res->crtcs[c]);
+
 	set_name_xid (&crtcs[c].crtc, res->crtcs[c]);
 	set_name_index (&crtcs[c].crtc, c);
 	if (!crtc_info) fatal ("could not get crtc 0x%x information", res->crtcs[c]);
 	crtcs[c].crtc_info = crtc_info;
+	crtcs[c].panning_info = panning_info;
 	if (crtc_info->mode == None)
 	{
 	    crtcs[c].mode_info = NULL;
@@ -1109,6 +1121,55 @@ set_crtcs (void)
     {
 	if (!output->mode_info) continue;
 	crtc_add_output (output->crtc_info, output);
+    }
+}
+
+static void
+crtc_set_panning (crtc_t *crtc, char *panning)
+{
+    XRRPanning *pan = crtc->panning_info;
+
+    if (!pan)
+	pan = malloc (sizeof(XRRPanning));
+    memset (pan, 0, sizeof(XRRPanning));
+
+    switch (sscanf (panning, "%dx%d+%d+%d/%dx%d+%d+%d/%d/%d/%d/%d",
+		    &pan->width, &pan->height, &pan->left, &pan->top,
+		    &pan->track_width, &pan->track_height,
+		    &pan->track_left, &pan->track_top,
+		    &pan->border_left, &pan->border_top,
+		    &pan->border_right, &pan->border_bottom)) {
+    case 2:
+	pan->left = pan->top = 0;
+	/* fall through */
+    case 4:
+	pan->track_left   = pan->left;
+	pan->track_top    = pan->top;
+	pan->track_width  = pan->width;
+	pan->track_height = pan->height;
+	/* fall through */
+    case 8:
+	pan->border_left = pan->border_top =
+	    pan->border_right = pan->border_bottom = 0;
+	/* fall through */
+    case 12:
+	break;
+    default:
+	usage ();
+    }
+    crtc->changing = 1;
+}
+
+static void
+set_panning (void)
+{
+    output_t	*output;
+
+    for (output = outputs; output; output = output->next)
+    {
+	if (!output->panning) continue;
+	if (!output->crtc_info) fatal ("no crtc assigned");
+	crtc_set_panning (output->crtc_info, output->panning);
     }
 }
 
@@ -1190,6 +1251,12 @@ crtc_apply (crtc_t *crtc)
 	s = XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
 			      crtc->x, crtc->y, mode, crtc->rotation,
 			      rr_outputs, crtc->noutput);
+	if (s == RRSetConfigSuccess && crtc->panning_info) {
+	    if (has_1_3)
+		s = XRRSetPanning (dpy, res, crtc->crtc.xid, crtc->panning_info);
+	    else
+		fatal ("panning needs RandR 1.3");
+	}
     }
     free (rr_outputs);
     return s;
@@ -2069,6 +2136,13 @@ main (int argc, char **argv)
 	    output->changes |= changes_relation;
 	    continue;
 	}
+	if (!strcmp ("--panning", argv[i])) {
+	    if (++i>=argc) usage ();
+	    if (!output) usage();
+	    output->panning = argv[i];
+	    output->changes |= changes_panning;
+	    continue;
+	}
 	if (!strcmp ("--set", argv[i])) {
 	    output_prop_t   *prop;
 	    if (!output) usage();
@@ -2307,6 +2381,8 @@ main (int argc, char **argv)
     }
     if (major > 1 || (major == 1 && minor >= 2))
 	has_1_2 = True;
+    if (major > 1 || (major == 1 && minor >= 3))
+	has_1_3 = True;
 	
     if (has_1_2 && modeit)
     {
@@ -2507,6 +2583,11 @@ main (int argc, char **argv)
 	}
 	
 	/*
+	 * Set panning
+	 */
+	set_panning ();
+	
+	/*
 	 * Now apply all of the changes
 	 */
 	apply ();
@@ -2591,6 +2672,24 @@ main (int argc, char **argv)
 		printf (" %dmm x %dmm",
 			output_info->mm_width, output_info->mm_height);
 	    }
+
+	    if (crtc && crtc->panning_info && crtc->panning_info->width > 0)
+	    {
+		XRRPanning *pan = crtc->panning_info;
+		printf (" panning %dx%d+%d+%d",
+			pan->width, pan->height, pan->left, pan->top);
+		if (pan->track_left   != pan->left			||
+		    pan->track_top    != pan->top			||
+		    pan->track_width  != pan->width			||
+		    pan->track_height != pan->height			||
+		    pan->border_left  != 0 || pan->border_top != 0	||
+		    pan->border_right != 0 || pan->border_bottom != 0)
+		    printf (" tracking %dx%d+%d+%d border %d/%d/%d/%d",
+			    pan->track_width,  pan->track_height,
+			    pan->track_left,   pan->track_top,
+			    pan->border_left,  pan->border_top,
+			    pan->border_right, pan->border_bottom);
+	    }
 	    printf ("\n");
 
 	    if (verbose)
@@ -2616,6 +2715,17 @@ main (int argc, char **argv)
 			printf (" %d", crtc->crtc.index);
 		}
 		printf ("\n");
+		if (output->crtc_info && output->crtc_info->panning_info) {
+		    XRRPanning *pan = output->crtc_info->panning_info;
+		    printf ("\tPanning:    %dx%d+%d+%d\n",
+			    pan->width, pan->height, pan->left, pan->top);
+		    printf ("\tTracking:   %dx%d+%d+%d\n",
+			    pan->track_width,  pan->track_height,
+			    pan->track_left,   pan->track_top);
+		    printf ("\tBorder:     %d/%d/%d/%d\n",
+			    pan->border_left,  pan->border_top,
+			    pan->border_right, pan->border_bottom);
+		}
 	    }
 	    if (verbose)
 	    {

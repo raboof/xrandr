@@ -129,6 +129,8 @@ usage(void)
     fprintf(stderr, "      --below <output>\n");
     fprintf(stderr, "      --same-as <output>\n");
     fprintf(stderr, "      --set <property> <value>\n");
+    fprintf(stderr, "      --scale <x>x<y>\n");
+    fprintf(stderr, "      --transform <a>,<b>,<c>,<d>,<e>,<f>,<g>,<h>,<i>\n");
     fprintf(stderr, "      --off\n");
     fprintf(stderr, "      --crtc <crtc>\n");
     fprintf(stderr, "  --newmode <name> <clock MHz>\n");
@@ -155,6 +157,17 @@ fatal (const char *format, ...)
     va_end (ap);
     exit (1);
     /*NOTREACHED*/
+}
+
+static void
+warning (const char *format, ...)
+{
+    va_list ap;
+    
+    va_start (ap, format);
+    fprintf (stderr, "%s: ", program_name);
+    vfprintf (stderr, format, ap);
+    va_end (ap);
 }
 
 static char *
@@ -196,6 +209,18 @@ typedef enum _relation {
     left_of, right_of, above, below, same_as,
 } relation_t;
 
+typedef struct {
+    int	    x, y, width, height;
+} rectangle_t;
+
+typedef struct {
+    int	    x1, y1, x2, y2;
+} box_t;
+
+typedef struct {
+    int	    x, y;
+} point_t;
+
 typedef enum _changes {
     changes_none = 0,
     changes_crtc = (1 << 0),
@@ -207,6 +232,7 @@ typedef enum _changes {
     changes_automatic = (1 << 6),
     changes_refresh = (1 << 7),
     changes_property = (1 << 8),
+    changes_transform = (1 << 9),
 } changes_t;
 
 typedef enum _name_kind {
@@ -226,8 +252,16 @@ typedef struct {
 
 typedef struct _crtc crtc_t;
 typedef struct _output	output_t;
+typedef struct _transform transform_t;
 typedef struct _umode	umode_t;
 typedef struct _output_prop output_prop_t;
+
+struct _transform {
+    XTransform	    transform;
+    char	    *filter;
+    int		    nparams;
+    XFixed	    *params;
+};
 
 struct _crtc {
     name_t	    crtc;
@@ -240,6 +274,7 @@ struct _crtc {
     Rotation	    rotation;
     output_t	    **outputs;
     int		    noutput;
+    transform_t	    current_transform, pending_transform;
 };
 
 struct _output_prop {
@@ -275,6 +310,7 @@ struct _output {
     Rotation	    rotation;
     
     Bool    	    automatic;
+    transform_t	    transform;
 };
 
 typedef enum _umode_action {
@@ -351,6 +387,81 @@ mode_width (XRRModeInfo *mode_info, Rotation rotation)
     default:
 	return 0;
     }
+}
+
+Bool
+transform_point (XTransform *transform, double *xp, double *yp)
+{
+    double  vector[3];
+    double  result[3];
+    int	    i, j;
+    double  partial, v;
+
+    vector[0] = *xp;
+    vector[1] = *yp;
+    vector[2] = 1;
+    for (j = 0; j < 3; j++)
+    {
+	v = 0;
+	for (i = 0; i < 3; i++)
+	    v += (XFixedToDouble (transform->matrix[j][i]) * vector[i]);
+	if (v > 32767 || v < -32767)
+	    return False;
+	result[j] = v;
+    }
+    if (!result[2])
+	return False;
+    for (j = 0; j < 2; j++)
+	vector[j] = result[j] / result[2];
+    *xp = vector[0];
+    *yp = vector[1];
+    return True;
+}
+
+Bool
+path_bounds (XTransform *transform, point_t *points, int npoints, box_t *box)
+{
+    int	    i;
+    box_t   point;
+
+    for (i = 0; i < npoints; i++) {
+	double	x, y;
+	x = points[i].x;
+	y = points[i].y;
+	transform_point (transform, &x, &y);
+	point.x1 = floor (x);
+	point.y1 = floor (y);
+	point.x2 = ceil (x);
+	point.y2 = ceil (y);
+	if (i == 0)
+	    *box = point;
+	else {
+	    if (point.x1 < box->x1) box->x1 = point.x1;
+	    if (point.y1 < box->y1) box->y1 = point.y1;
+	    if (point.x2 > box->x2) box->x2 = point.x2;
+	    if (point.y2 > box->y2) box->y2 = point.y2;
+	}
+    }
+}
+
+static void
+mode_geometry (XRRModeInfo *mode_info, Rotation rotation,
+	       XTransform *transform,
+	       box_t *bounds)
+{
+    point_t rect[4];
+    int	width = mode_width (mode_info, rotation);
+    int height = mode_height (mode_info, rotation);
+
+    rect[0].x = 0;
+    rect[0].y = 0;
+    rect[1].x = width;
+    rect[1].y = 0;
+    rect[2].x = width;
+    rect[2].y = height;
+    rect[3].x = 0;
+    rect[3].y = height;
+    path_bounds (transform, rect, 4, bounds);
 }
 
 /* v refresh frequency in Hz */
@@ -440,6 +551,53 @@ set_name (name_t *name, char *string, name_kind_t valid)
 	set_name_string (name, string);
     else
 	usage ();
+}
+
+static void
+init_transform (transform_t *transform)
+{
+    int x;
+    memset (&transform->transform, '\0', sizeof (transform->transform));
+    for (x = 0; x < 3; x++)
+	transform->transform.matrix[x][x] = XDoubleToFixed (1.0);
+    transform->filter = "";
+    transform->nparams = 0;
+    transform->params = NULL;
+}
+
+static void
+set_transform (transform_t  *dest,
+	       XTransform   *transform,
+	       char	    *filter,
+	       XFixed	    *params,
+	       int	    nparams)
+{
+    dest->transform = *transform;
+    dest->filter = strdup (filter);
+    dest->nparams = nparams;
+    dest->params = malloc (nparams * sizeof (XFixed));
+    memcpy (dest->params, params, nparams * sizeof (XFixed));
+}
+
+static void
+copy_transform (transform_t *dest, transform_t *src)
+{
+    set_transform (dest, &src->transform,
+		   src->filter, src->params, src->nparams);
+}
+
+static Bool
+equal_transform (transform_t *a, transform_t *b)
+{
+    if (memcmp (&a->transform, &b->transform, sizeof (XTransform)) != 0)
+	return False;
+    if (strcmp (a->filter, b->filter) != 0)
+	return False;
+    if (a->nparams != b->nparams)
+	return False;
+    if (memcmp (a->params, b->params, a->nparams * sizeof (XFixed)) != 0)
+	return False;
+    return True;
 }
 
 static output_t *
@@ -687,6 +845,17 @@ crtc_can_use_rotation (crtc_t *crtc, Rotation rotation)
     return False;
 }
 
+static Bool
+crtc_can_use_transform (crtc_t *crtc, XTransform *transform)
+{
+    int	major, minor;
+
+    XRRQueryVersion (dpy, &major, &minor);
+    if (major > 1 || (major == 1 && minor >= 3))
+	return True;
+    return False;
+}
+
 /*
  * Report only rotations that are supported by all crtcs
  */
@@ -738,8 +907,8 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 {
     /* sanity check output info */
     if (output_info->connection != RR_Disconnected && !output_info->nmode)
-	fatal ("Output %s is not disconnected but has no modes\n",
-	       output_info->name);
+	warning ("Output %s is not disconnected but has no modes\n",
+		 output_info->name);
     
     /* set output name and info */
     if (!(output->output.kind & name_xid))
@@ -844,6 +1013,15 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 	       output->output.string,
 	       rotation_name (output->rotation),
 	       reflection_name (output->rotation));
+
+    /* set transformation */
+    if (!(output->changes & changes_transform))
+    {
+	if (output->crtc_info)
+	    copy_transform (&output->transform, &output->crtc_info->current_transform);
+	else
+	    init_transform (&output->transform);
+    }
 }
     
 static void
@@ -871,6 +1049,10 @@ get_crtcs (void)
     for (c = 0; c < res->ncrtc; c++)
     {
 	XRRCrtcInfo *crtc_info = XRRGetCrtcInfo (dpy, res, res->crtcs[c]);
+#if RANDR_MAJOR > 1 || RANDR_MINOR >= 3
+	XRRCrtcTransformAttributes  *attr;
+#endif
+	int	    x;
 	set_name_xid (&crtcs[c].crtc, res->crtcs[c]);
 	set_name_index (&crtcs[c].crtc, c);
 	if (!crtc_info) fatal ("could not get crtc 0x%x information", res->crtcs[c]);
@@ -882,7 +1064,22 @@ get_crtcs (void)
 	    crtcs[c].y = 0;
 	    crtcs[c].rotation = RR_Rotate_0;
 	}
-    }
+#if RANDR_MAJOR > 1 || RANDR_MINOR >= 3
+	if (XRRGetCrtcTransform (dpy, res->crtcs[c], &attr) && attr) {
+	    set_transform (&crtcs[c].current_transform,
+			   &attr->currentTransform,
+			   attr->currentFilter,
+			   attr->currentParams,
+			   attr->currentNparams);
+	    XFree (attr);
+	}
+	else
+#endif
+	{
+	    init_transform (&crtcs[c].current_transform);
+	}
+	copy_transform (&crtcs[c].pending_transform, &crtcs[c].current_transform);
+   }
 }
 
 static void
@@ -897,7 +1094,8 @@ crtc_add_output (crtc_t *crtc, output_t *output)
 	crtc->y = output->y;
 	crtc->rotation = output->rotation;
 	crtc->mode_info = output->mode_info;
-    }
+	copy_transform (&crtc->pending_transform, &output->transform);
+   }
     if (!crtc->outputs) fatal ("out of memory");
     crtc->outputs[crtc->noutput++] = output;
 }
@@ -926,6 +1124,20 @@ crtc_disable (crtc_t *crtc)
 			     0, 0, None, RR_Rotate_0, NULL, 0);
 }
 
+static void
+crtc_set_transform (crtc_t *crtc, transform_t *transform)
+{
+    int	major, minor;
+
+    XRRQueryVersion (dpy, &major, &minor);
+    if (major > 1 || (major == 1 && minor >= 3))
+	XRRSetCrtcTransform (dpy, crtc->crtc.xid,
+			     &transform->transform,
+			     transform->filter,
+			     transform->params,
+			     transform->nparams);
+}
+
 static Status
 crtc_revert (crtc_t *crtc)
 {
@@ -936,6 +1148,8 @@ crtc_revert (crtc_t *crtc)
 	
     if (dryrun)
 	return RRSetConfigSuccess;
+
+    crtc_set_transform (crtc, &crtc->current_transform);
     return XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
 			    crtc_info->x, crtc_info->y,
 			    crtc_info->mode, crtc_info->rotation,
@@ -971,9 +1185,12 @@ crtc_apply (crtc_t *crtc)
     if (dryrun)
 	s = RRSetConfigSuccess;
     else
+    {
+	crtc_set_transform (crtc, &crtc->pending_transform);
 	s = XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
 			      crtc->x, crtc->y, mode, crtc->rotation,
 			      rr_outputs, crtc->noutput);
+    }
     free (rr_outputs);
     return s;
 }
@@ -1079,16 +1296,21 @@ apply (void)
 	{
 	    XRRModeInfo	*old_mode = find_mode_by_xid (crtc_info->mode);
 	    int x, y, w, h;
+	    box_t bounds;
 
 	    if (!old_mode) 
 		panic (RRSetConfigFailed, crtc);
 	    
 	    /* old position and size information */
-	    x = crtc_info->x;
-	    y = crtc_info->y;
-	    w = mode_width (old_mode, crtc_info->rotation);
-	    h = mode_height (old_mode, crtc_info->rotation);
-	    
+	    mode_geometry (old_mode, crtc_info->rotation,
+			   &crtc->current_transform.transform,
+			   &bounds);
+
+	    x = crtc_info->x + bounds.x1;
+	    y = crtc_info->y + bounds.y1;
+	    w = bounds.x2 - bounds.x1;
+	    h = bounds.y2 - bounds.y1;
+
 	    /* if it fits, skip it */
 	    if (x + w <= fb_width && y + h <= fb_height) 
 		continue;
@@ -1287,6 +1509,8 @@ check_crtc_for_output (crtc_t *crtc, output_t *output, Bool ignore_state)
 	    return False;
 	if (crtc->rotation != output->rotation)
 	    return False;
+	if (!equal_transform (&crtc->current_transform, &output->transform))
+	    return False;
     }
     else if (crtc->crtc_info->noutput)
     {
@@ -1433,19 +1657,23 @@ set_screen_size (void)
     {
 	XRRModeInfo *mode_info = output->mode_info;
 	int	    x, y, w, h;
+	box_t	    bounds;
 	
 	if (!mode_info) continue;
 	
-	x = output->x;
-	y = output->y;
-	w = mode_width (mode_info, output->rotation);
-	h = mode_height (mode_info, output->rotation);
+	mode_geometry (mode_info, output->rotation,
+		       &output->transform.transform,
+		       &bounds);
+	x = output->x + bounds.x1;
+	y = output->y + bounds.y1;
+	w = bounds.x2 - bounds.x1;
+	h = bounds.y2 - bounds.y1;
 	/* make sure output fits in specified size */
 	if (fb_specified)
 	{
 	    if (x + w > fb_width || y + h > fb_height)
-		fatal ("specified screen %dx%d not large enough for output %s (%dx%d+%d+%d)\n",
-		       fb_width, fb_height, output->output.string, w, h, x, y);
+		warning ("specified screen %dx%d not large enough for output %s (%dx%d+%d+%d)\n",
+			 fb_width, fb_height, output->output.string, w, h, x, y);
 	}
 	/* fit fb to output */
 	else
@@ -1856,6 +2084,50 @@ main (int argc, char **argv)
 	    setit_1_2 = True;
 	    continue;
 	}
+	if (!strcmp ("--scale", argv[i]))
+	{
+	    double  sx, sy;
+	    if (++i>=argc) usage();
+	    if (sscanf (argv[i], "%lfx%lf", &sx, &sy) != 2)
+		usage ();
+	    init_transform (&output->transform);
+	    output->transform.transform.matrix[0][0] = XDoubleToFixed (sx);
+	    output->transform.transform.matrix[1][1] = XDoubleToFixed (sy);
+	    output->transform.transform.matrix[2][2] = XDoubleToFixed (1.0);
+	    if (sx != 1 || sy != 1)
+		output->transform.filter = "bilinear";
+	    else
+		output->transform.filter = "nearest";
+	    output->transform.nparams = 0;
+	    output->transform.params = NULL;
+	    output->changes |= changes_transform;
+	    continue;
+	}
+	if (!strcmp ("--transform", argv[i])) {
+	    double  transform[3][3];
+	    int	    k, l;
+	    if (++i>=argc) usage ();
+	    init_transform (&output->transform);
+	    if (strcmp (argv[i], "none") != 0)
+	    {
+		if (sscanf(argv[i], "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf",
+			   &transform[0][0],&transform[0][1],&transform[0][2],
+			   &transform[1][0],&transform[1][1],&transform[1][2],
+			   &transform[2][0],&transform[2][1],&transform[2][2])
+		    != 9)
+		    usage ();
+		init_transform (&output->transform);
+		for (k = 0; k < 3; k++)
+		    for (l = 0; l < 3; l++) {
+			output->transform.transform.matrix[k][l] = XDoubleToFixed (transform[k][l]);
+		    }
+		output->transform.filter = "bilinear";
+		output->transform.nparams = 0;
+		output->transform.params = NULL;
+	    }
+	    output->changes |= changes_transform;
+	    continue;
+	}
 	if (!strcmp ("--off", argv[i])) {
 	    if (!output) usage();
 	    set_name_xid (&output->mode, None);
@@ -2261,6 +2533,8 @@ main (int argc, char **argv)
 	for (output = outputs; output; output = output->next)
 	{
 	    XRROutputInfo   *output_info = output->output_info;
+	    crtc_t	    *crtc = output->crtc_info;
+	    XRRCrtcInfo	    *crtc_info = crtc ? crtc->crtc_info : NULL;
 	    XRRModeInfo	    *mode = output->mode_info;
 	    Atom	    *props;
 	    int		    j, k, nprop;
@@ -2270,10 +2544,14 @@ main (int argc, char **argv)
 	    printf ("%s %s", output_info->name, connection[output_info->connection]);
 	    if (mode)
 	    {
-		printf (" %dx%d+%d+%d",
-			mode_width (mode, output->rotation),
-			mode_height (mode, output->rotation),
-			output->x, output->y);
+		if (crtc_info) {
+		    printf (" %dx%d+%d+%d",
+			    crtc_info->width, crtc_info->height,
+			    crtc_info->x, crtc_info->y);
+		} else {
+		    printf (" %dx%d+%d+%d",
+			    mode->width, mode->height, output->x, output->y);
+		}
 		if (verbose)
 		    printf (" (0x%x)", mode->id);
 		if (output->rotation != RR_Rotate_0 || verbose)
@@ -2337,6 +2615,22 @@ main (int argc, char **argv)
 		    if (crtc)
 			printf (" %d", crtc->crtc.index);
 		}
+		printf ("\n");
+	    }
+	    if (verbose)
+	    {
+		int x, y;
+
+		printf ("\tTransform: ");
+		for (y = 0; y < 3; y++)
+		{
+		    for (x = 0; x < 3; x++)
+			printf (" %f", XFixedToDouble (output->transform.transform.matrix[y][x]));
+		    if (y < 2)
+			printf ("\n\t           ");
+		}
+		if (output->transform.filter)
+		    printf ("\n\t           filter: %s", output->transform.filter);
 		printf ("\n");
 	    }
 	    if (verbose || properties)
@@ -2406,12 +2700,14 @@ main (int argc, char **argv)
 			    }
 			}
 			printf("\n");
-			
 		    } else if (actual_format == 8) {
 			printf ("\t\t%s: %s%s\n", XGetAtomName (dpy, props[j]),
 				prop, bytes_after ? "..." : "");
 		    } else {
-			printf ("\t\t%s: ????\n", XGetAtomName (dpy, props[j]));
+			char	*type = actual_type ? XGetAtomName (dpy, actual_type) : "none";
+			printf ("\t\t%s: %s(%d) (format %d items %d) ????\n",
+				XGetAtomName (dpy, props[j]),
+				type, actual_type, actual_format, nitems);
 		    }
 
 		    free(propinfo);

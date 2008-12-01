@@ -32,7 +32,7 @@ AC_PROG_INSTALL
 
 AC_CHECK_LIB(m,floor)
 # Checks for pkg-config packages
-PKG_CHECK_MODULES(XRANDR, xrandr >= 1.2.0 xrender x11)
+PKG_CHECK_MODULES(XRANDR, xrandr >= 1.2.91 xrender x11)
 AC_SUBST(XRANDR_CFLAGS)
 AC_SUBST(XRANDR_LIBS)
 

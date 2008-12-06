@@ -24,7 +24,7 @@ bin_PROGRAMS = xrandr
 bin_SCRIPTS = xkeystone
 
 xkeystone: keystone.5c
-	(echo '#!/usr/bin/env nickle'; cat $<) > $@
+	(echo '#!/usr/bin/env nickle'; cat ${srcdir}/keystone.5c) > $@
 	chmod +x $@
 
 clean-local:

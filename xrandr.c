@@ -2025,7 +2025,10 @@ main (int argc, char **argv)
 	    continue;
 	}
 #if HAS_RANDR_1_2
-	if (!strcmp ("--prop", argv[i]) || !strcmp ("--properties", argv[i]))
+	if (!strcmp ("--prop", argv[i]) ||
+	    !strcmp ("--props", argv[i]) ||
+	    !strcmp ("--madprops", argv[i]) ||
+	    !strcmp ("--properties", argv[i]))
 	{
 	    query_1_2 = True;
 	    properties = True;

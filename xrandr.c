@@ -1210,7 +1210,8 @@ crtc_revert (crtc_t *crtc)
     if (dryrun)
 	return RRSetConfigSuccess;
 
-    crtc_set_transform (crtc, &crtc->current_transform);
+    if (!equal_transform (&crtc->current_transform, &crtc->pending_transform))
+	crtc_set_transform (crtc, &crtc->current_transform);
     return XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
 			    crtc_info->x, crtc_info->y,
 			    crtc_info->mode, crtc_info->rotation,
@@ -1247,7 +1248,8 @@ crtc_apply (crtc_t *crtc)
 	s = RRSetConfigSuccess;
     else
     {
-	crtc_set_transform (crtc, &crtc->pending_transform);
+	if (!equal_transform (&crtc->current_transform, &crtc->pending_transform))
+	    crtc_set_transform (crtc, &crtc->pending_transform);
 	s = XRRSetCrtcConfig (dpy, res, crtc->crtc.xid, CurrentTime,
 			      crtc->x, crtc->y, mode, crtc->rotation,
 			      rr_outputs, crtc->noutput);

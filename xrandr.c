@@ -1047,7 +1047,7 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 }
     
 static void
-get_screen (void)
+get_screen (Bool current)
 {
     if (!has_1_2)
         fatal ("Server RandR version before 1.2\n");
@@ -1055,8 +1055,11 @@ get_screen (void)
     XRRGetScreenSizeRange (dpy, root, &minWidth, &minHeight,
 			   &maxWidth, &maxHeight);
     
-    res = XRRGetScreenResources (dpy, root);
-    if (!res) fatal ("could not get screen resources\n");
+    if (current)
+	res = XRRGetScreenResourcesCurrent (dpy, root);
+    else
+	res = XRRGetScreenResources (dpy, root);
+    if (!res) fatal ("could not get screen resources");
 }
 
 static void
@@ -1984,6 +1987,7 @@ main (int argc, char **argv)
     Bool	propit = False;
     Bool	query_1 = False;
     int		major, minor;
+    Bool	current = False;
 #endif
 
     program_name = argv[0];
@@ -2005,6 +2009,12 @@ main (int argc, char **argv)
 	if (!strcmp ("--dryrun", argv[i])) {
 	    dryrun = True;
 	    verbose = True;
+	    continue;
+	}
+	if (!strcmp("--current", argv[i])) {
+	    current = True;
+	    /* if --current was the only arg, then query */
+	    if (argc == 2) query = True;
 	    continue;
 	}
 
@@ -2480,7 +2490,7 @@ main (int argc, char **argv)
     {
 	umode_t	*m;
 
-        get_screen ();
+        get_screen (current);
 	get_crtcs();
 	get_outputs();
 	
@@ -2528,7 +2538,7 @@ main (int argc, char **argv)
     if (has_1_2 && propit)
     {
 	
-        get_screen ();
+        get_screen (current);
 	get_crtcs();
 	get_outputs();
 	
@@ -2606,7 +2616,7 @@ main (int argc, char **argv)
     }
     if (setit_1_2)
     {
-	get_screen ();
+	get_screen (current);
 	get_crtcs ();
 	get_outputs ();
 	set_positions ();
@@ -2701,7 +2711,7 @@ main (int argc, char **argv)
 	
 #define ModeShown   0x80000000
 	
-	get_screen ();
+	get_screen (current);
 	get_crtcs ();
 	get_outputs ();
 

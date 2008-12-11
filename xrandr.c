@@ -1143,10 +1143,8 @@ crtc_set_panning (crtc_t *crtc, char *panning)
 	pan->left = pan->top = 0;
 	/* fall through */
     case 4:
-	pan->track_left   = pan->left;
-	pan->track_top    = pan->top;
-	pan->track_width  = pan->width;
-	pan->track_height = pan->height;
+	pan->track_left = pan->track_top =
+	    pan->track_width = pan->track_height = 0;
 	/* fall through */
     case 8:
 	pan->border_left = pan->border_top =
@@ -2683,12 +2681,16 @@ main (int argc, char **argv)
 		XRRPanning *pan = crtc->panning_info;
 		printf (" panning %dx%d+%d+%d",
 			pan->width, pan->height, pan->left, pan->top);
-		if (pan->track_left   != pan->left			||
-		    pan->track_top    != pan->top			||
-		    pan->track_width  != pan->width			||
-		    pan->track_height != pan->height			||
-		    pan->border_left  != 0 || pan->border_top != 0	||
-		    pan->border_right != 0 || pan->border_bottom != 0)
+		if ((pan->track_width    != 0 &&
+		     (pan->track_left    != pan->left		||
+		      pan->track_width   != pan->width		||
+		      pan->border_left   != 0			||
+		      pan->border_right  != 0))			||
+		    (pan->track_height   != 0 &&
+		     (pan->track_top     != pan->top		||
+		      pan->track_height  != pan->height		||
+		      pan->border_top    != 0			||
+		      pan->border_bottom != 0)))
 		    printf (" tracking %dx%d+%d+%d border %d/%d/%d/%d",
 			    pan->track_width,  pan->track_height,
 			    pan->track_left,   pan->track_top,

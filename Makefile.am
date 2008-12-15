@@ -43,7 +43,7 @@ appmandir = $(APP_MAN_DIR)
 
 appman_DATA = $(appman_PRE:man=@APP_MAN_SUFFIX@)
 
-EXTRA_DIST = $(appman_PRE) ChangeLog autogen.sh xrandr_test.pl
+EXTRA_DIST = $(appman_PRE) ChangeLog autogen.sh xrandr_test.pl keystone.5c
 CLEANFILES = $(appman_DATA)
 MAINTAINERCLEANFILES = ChangeLog
 

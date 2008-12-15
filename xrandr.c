@@ -312,7 +312,7 @@ struct _output {
     int		    x, y;
     Rotation	    rotation;
     
-    char            *panning;
+    XRRPanning      panning;
 
     Bool    	    automatic;
     transform_t	    transform;
@@ -1125,49 +1125,20 @@ set_crtcs (void)
 }
 
 static void
-crtc_set_panning (crtc_t *crtc, char *panning)
-{
-    XRRPanning *pan = crtc->panning_info;
-
-    if (!pan)
-	pan = malloc (sizeof(XRRPanning));
-    memset (pan, 0, sizeof(XRRPanning));
-
-    switch (sscanf (panning, "%dx%d+%d+%d/%dx%d+%d+%d/%d/%d/%d/%d",
-		    &pan->width, &pan->height, &pan->left, &pan->top,
-		    &pan->track_width, &pan->track_height,
-		    &pan->track_left, &pan->track_top,
-		    &pan->border_left, &pan->border_top,
-		    &pan->border_right, &pan->border_bottom)) {
-    case 2:
-	pan->left = pan->top = 0;
-	/* fall through */
-    case 4:
-	pan->track_left = pan->track_top =
-	    pan->track_width = pan->track_height = 0;
-	/* fall through */
-    case 8:
-	pan->border_left = pan->border_top =
-	    pan->border_right = pan->border_bottom = 0;
-	/* fall through */
-    case 12:
-	break;
-    default:
-	usage ();
-    }
-    crtc->changing = 1;
-}
-
-static void
 set_panning (void)
 {
     output_t	*output;
 
     for (output = outputs; output; output = output->next)
     {
-	if (!output->panning) continue;
-	if (!output->crtc_info) fatal ("no crtc assigned");
-	crtc_set_panning (output->crtc_info, output->panning);
+	if (! output->crtc_info)
+	    continue;
+	if (! (output->changes & changes_panning))
+	    continue;
+	if (! output->crtc_info->panning_info)
+	    output->crtc_info->panning_info = malloc (sizeof(XRRPanning));
+	memcpy (output->crtc_info->panning_info, &output->panning, sizeof(XRRPanning));
+	output->crtc_info->changing = 1;
     }
 }
 
@@ -1745,8 +1716,19 @@ set_screen_size (void)
 	/* fit fb to output */
 	else
 	{
-	    if (x + w > fb_width) fb_width = x + w;
-	    if (y + h > fb_height) fb_height = y + h;
+	    XRRPanning *pan;
+	    if (x + w > fb_width)
+		fb_width = x + w;
+	    if (y + h > fb_height)
+		fb_height = y + h;
+	    if (output->changes & changes_panning)
+		pan = &output->panning;
+	    else
+		pan = output->crtc_info ? output->crtc_info->panning_info : NULL;
+	    if (pan && pan->left + pan->width > fb_width)
+		fb_width = pan->left + pan->width;
+	    if (pan && pan->top + pan->height > fb_height)
+		fb_height = pan->top + pan->height;
 	}
     }	
 
@@ -2140,9 +2122,32 @@ main (int argc, char **argv)
 	    continue;
 	}
 	if (!strcmp ("--panning", argv[i])) {
+	    XRRPanning *pan;
 	    if (++i>=argc) usage ();
 	    if (!output) usage();
-	    output->panning = argv[i];
+	    pan = &output->panning;
+	    switch (sscanf (argv[i], "%dx%d+%d+%d/%dx%d+%d+%d/%d/%d/%d/%d",
+			    &pan->width, &pan->height, &pan->left, &pan->top,
+			    &pan->track_width, &pan->track_height,
+			    &pan->track_left, &pan->track_top,
+			    &pan->border_left, &pan->border_top,
+			    &pan->border_right, &pan->border_bottom)) {
+	    case 2:
+		pan->left = pan->top = 0;
+		/* fall through */
+	    case 4:
+		pan->track_left = pan->track_top =
+		    pan->track_width = pan->track_height = 0;
+		/* fall through */
+	    case 8:
+		pan->border_left = pan->border_top =
+		    pan->border_right = pan->border_bottom = 0;
+		/* fall through */
+	    case 12:
+		break;
+	    default:
+		usage ();
+	    }
 	    output->changes |= changes_panning;
 	    continue;
 	}

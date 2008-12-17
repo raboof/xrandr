@@ -134,6 +134,7 @@ usage(void)
     fprintf(stderr, "      --off\n");
     fprintf(stderr, "      --crtc <crtc>\n");
     fprintf(stderr, "      --panning <w>x<h>[+<x>+<y>[/<track:w>x<h>+<x>+<y>[/<border:l>/<t>/<r>/<b>]]]\n");
+    fprintf(stderr, "      --gamma <r>:<g>:<b>\n");
     fprintf(stderr, "  --newmode <name> <clock MHz>\n");
     fprintf(stderr, "            <hdisp> <hsync-start> <hsync-end> <htotal>\n");
     fprintf(stderr, "            <vdisp> <vsync-start> <vsync-end> <vtotal>\n");
@@ -235,6 +236,7 @@ typedef enum _changes {
     changes_property = (1 << 8),
     changes_transform = (1 << 9),
     changes_panning = (1 << 10),
+    changes_gamma = (1 << 11),
 } changes_t;
 
 typedef enum _name_kind {
@@ -311,11 +313,17 @@ struct _output {
 
     int		    x, y;
     Rotation	    rotation;
-    
+
     XRRPanning      panning;
 
     Bool    	    automatic;
     transform_t	    transform;
+
+    struct {
+	float red;
+	float green;
+	float blue;
+    } gamma;
 };
 
 typedef enum _umode_action {
@@ -1139,6 +1147,66 @@ set_panning (void)
 	    output->crtc_info->panning_info = malloc (sizeof(XRRPanning));
 	memcpy (output->crtc_info->panning_info, &output->panning, sizeof(XRRPanning));
 	output->crtc_info->changing = 1;
+    }
+}
+
+static void
+set_gamma()
+{
+    output_t	*output;
+
+    for (output = outputs; output; output = output->next) {
+	int i, size;
+	crtc_t *crtc;
+	XRRCrtcGamma *gamma;
+
+	if (!(output->changes & changes_gamma))
+	    continue;
+
+	if (!output->crtc_info) {
+	    fatal("Need crtc to set gamma on.\n");
+	    continue;
+	}
+
+	crtc = output->crtc_info;
+
+	size = XRRGetCrtcGammaSize(dpy, crtc->crtc.xid);
+
+	if (!size) {
+	    fatal("Gamma size is 0.\n");
+	    continue;
+	}
+
+	gamma = XRRAllocGamma(size);
+	if (!gamma) {
+	    fatal("Gamma allocation failed.\n");
+	    continue;
+	}
+
+	for (i = 0; i < size; i++) {
+	    /* Code partially borrowed from ComputeGamma(). */
+	    if (output->gamma.red == 1.0)
+		gamma->red[i] = i << 8;
+	    else
+		gamma->red[i] = (CARD16)((pow((double)i/(double)size,
+			    output->gamma.red) * (double)size + 0.5)*256);
+
+	    if (output->gamma.green == 1.0)
+		gamma->green[i] = i << 8;
+	    else
+		gamma->green[i] = (CARD16)((pow((double)i/(double)size,
+			    output->gamma.green) * (double)size + 0.5)*256);
+
+	    if (output->gamma.blue == 1.0)
+		gamma->blue[i] = i << 8;
+	    else
+		gamma->blue[i] = (CARD16)((pow((double)i/(double)size,
+			    output->gamma.blue) * (double)size + 0.5)*256);
+	}
+
+	XRRSetCrtcGamma(dpy, crtc->crtc.xid, gamma);
+
+	free(gamma);
     }
 }
 
@@ -2151,6 +2219,16 @@ main (int argc, char **argv)
 	    output->changes |= changes_panning;
 	    continue;
 	}
+	if (!strcmp ("--gamma", argv[i])) {
+	    if (!output) usage();
+	    if (++i>=argc) usage ();
+	    if (sscanf(argv[i], "%f:%f:%f", &output->gamma.red, 
+		    &output->gamma.green, &output->gamma.blue) != 3)
+		usage ();
+	    output->changes |= changes_gamma;
+	    setit_1_2 = True;
+	    continue;
+	}
 	if (!strcmp ("--set", argv[i])) {
 	    output_prop_t   *prop;
 	    if (!output) usage();
@@ -2594,7 +2672,12 @@ main (int argc, char **argv)
 	 * Set panning
 	 */
 	set_panning ();
-	
+
+	/* 
+	 * Set gamma on crtc's that belong to the outputs.
+	 */
+	set_gamma ();
+
 	/*
 	 * Now apply all of the changes
 	 */

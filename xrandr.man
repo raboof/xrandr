@@ -68,6 +68,7 @@ xrandr \- primitive command line interface to RandR extension
 [\-\-set \fIproperty\fP \fIvalue\fP]
 [\-\-off]
 [\-\-crtc \fIcrtc\fP]
+[\-\-gamma \fIred\fP:\fIgreen\fP:\fIblue\fP]
 .br
 .B RandR version 1.0 and version 1.1 options
 .br
@@ -207,6 +208,11 @@ Uses the specified crtc (either as an index in the list of CRTCs or XID).
 In normal usage, this option is not required as xrandr tries to make
 sensible choices about which crtc to use with each output. When that fails
 for some reason, this option can override the normal selection.
+.IP "\-\-gamma \fIred\fP:\fIgreen\fP:\fIblue\fP"
+Set the specified floating point values as gamma correction on the crtc 
+currently attached to this output. Note that you cannot get two different values
+for cloned outputs and that switching an output to another crtc doesn't change
+the crtc gamma corrections at all.
 .PP
 .SH "RandR version 1.1 options"
 These options are available for X servers supporting RandR version 1.1 or

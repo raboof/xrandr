@@ -2872,12 +2872,18 @@ main (int argc, char **argv)
 		    } else if (actual_type == XA_INTEGER &&
 			       actual_format == 32)
 		    {
-			printf("\t%s: %d (0x%08x)",
-			       XGetAtomName (dpy, props[j]),
-			       *(INT32 *)prop, *(INT32 *)prop);
+			printf("\t%s: ", XGetAtomName (dpy, props[j]));
+			for (k = 0; k < nitems; k++) {
+			    if (k > 0)
+				printf ("\n\t\t\t");
+			    printf("%d (0x%08x)",
+				   ((INT32 *)prop)[k], ((INT32 *)prop)[k]);
+			}
 
  			if (propinfo->range && propinfo->num_values > 0) {
-			    printf(" range%s: ",
+			    if (nitems > 1)
+				printf ("\n\t\t");
+			    printf("\trange%s: ",
 				   (propinfo->num_values == 2) ? "" : "s");
 
 			    for (k = 0; k < propinfo->num_values / 2; k++)
@@ -2889,9 +2895,12 @@ main (int argc, char **argv)
 		    } else if (actual_type == XA_ATOM &&
 			       actual_format == 32)
 		    {
-			printf("\t%s: %s",
-			       XGetAtomName (dpy, props[j]),
-			       XGetAtomName (dpy, *(Atom *)prop));
+			printf("\t%s:", XGetAtomName (dpy, props[j]));
+			for (k = 0; k < nitems; k++) {
+			    if (k > 0 && (k & 1) == 0)
+				printf ("\n\t\t");
+			    printf("\t%s", XGetAtomName (dpy, ((Atom *)prop)[k]));
+			}
 
  			if (!propinfo->range && propinfo->num_values > 0) {
 			    printf("\n\t\tsupported:");
@@ -2906,11 +2915,11 @@ main (int argc, char **argv)
 			}
 			printf("\n");
 		    } else if (actual_format == 8) {
-			printf ("\t\t%s: %s%s\n", XGetAtomName (dpy, props[j]),
+			printf ("\t%s: %s%s\n", XGetAtomName (dpy, props[j]),
 				prop, bytes_after ? "..." : "");
 		    } else {
 			char	*type = actual_type ? XGetAtomName (dpy, actual_type) : "none";
-			printf ("\t\t%s: %s(%d) (format %d items %d) ????\n",
+			printf ("\t%s: %s(%d) (format %d items %d) ????\n",
 				XGetAtomName (dpy, props[j]),
 				type, actual_type, actual_format, nitems);
 		    }

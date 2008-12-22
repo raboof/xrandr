@@ -1184,24 +1184,23 @@ set_gamma()
 	}
 
 	for (i = 0; i < size; i++) {
-	    /* Code partially borrowed from ComputeGamma(). */
 	    if (output->gamma.red == 1.0)
 		gamma->red[i] = i << 8;
 	    else
-		gamma->red[i] = (CARD16)((pow((double)i/(double)size,
-			    output->gamma.red) * (double)size + 0.5)*256);
+		gamma->red[i] = (CARD16)(pow((double)i/(double)(size - 1),
+			    (double)output->gamma.red) * (double)(size - 1) * 256);
 
 	    if (output->gamma.green == 1.0)
 		gamma->green[i] = i << 8;
 	    else
-		gamma->green[i] = (CARD16)((pow((double)i/(double)size,
-			    output->gamma.green) * (double)size + 0.5)*256);
+		gamma->green[i] = (CARD16)(pow((double)i/(double)(size - 1),
+			    (double)output->gamma.green) * (double)(size - 1) * 256);
 
 	    if (output->gamma.blue == 1.0)
 		gamma->blue[i] = i << 8;
 	    else
-		gamma->blue[i] = (CARD16)((pow((double)i/(double)size,
-			    output->gamma.blue) * (double)size + 0.5)*256);
+		gamma->blue[i] = (CARD16)(pow((double)i/(double)(size - 1),
+			    (double)output->gamma.blue) * (double)(size - 1) * 256);
 	}
 
 	XRRSetCrtcGamma(dpy, crtc->crtc.xid, gamma);

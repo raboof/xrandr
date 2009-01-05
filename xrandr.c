@@ -765,7 +765,7 @@ find_mode_for_output (output_t *output, name_t *name)
     for (m = 0; m < output_info->nmode; m++)
     {
 	XRRModeInfo	    *mode;
-	
+
 	mode = find_mode_by_xid (output_info->modes[m]);
 	if (!mode) continue;
 	if ((name->kind & name_xid) && name->xid == mode->id)
@@ -776,7 +776,11 @@ find_mode_for_output (output_t *output, name_t *name)
 	if ((name->kind & name_string) && !strcmp (name->string, mode->name))
 	{
 	    float   dist;
-	    
+
+	    /* Stay away from doublescan modes unless refresh rate is specified. */
+	    if (!output->refresh && (mode->modeFlags & RR_DoubleScan))
+		continue;
+
 	    if (output->refresh)
 		dist = fabs (mode_refresh (mode) - output->refresh);
 	    else

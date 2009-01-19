@@ -37,7 +37,11 @@ xrandr \- primitive command line interface to RandR extension
 .br
 .B RandR version 1.3 options
 .br
+.B Per-output options
+.br
 [\-\-panning \fIwidth\fPx\fIheight\fP[+\fIx\fP+\fIy\fP[/\fItrack_width\fPx\fItrack_height\fP+\fItrack_x\fP+\fItrack_y\fP[/\fIborder_left\fP/\fIborder_top\fP/\fIborder_right\fP/\fIborder_bottom\fP]]]]
+[\-\-scale \fIx\fPx\fIy\fP]
+[\-\-transform \fIa\fP,\fIb\fP,\fIc\fP,\fId\fP,\fIe\fP,\fIf\fP,\fIg\fP,\fIh\fP,\fIi\fP]
 .br
 .B RandR version 1.2 options
 .br
@@ -69,6 +73,7 @@ xrandr \- primitive command line interface to RandR extension
 [\-\-off]
 [\-\-crtc \fIcrtc\fP]
 [\-\-gamma \fIred\fP:\fIgreen\fP:\fIblue\fP]
+
 .br
 .B RandR version 1.0 and version 1.1 options
 .br
@@ -118,6 +123,8 @@ not report it as supported or a higher version is available.
 .PP
 .SH "RandR version 1.3 options"
 .PP
+Options for RandR 1.3 are used as a superset of the options for RandR 1.2.
+.PP
 .B "Per-output options"
 .IP "\-\-panning \fIwidth\fPx\fIheight\fP[+\fIx\fP+\fIy\fP[/\fItrack_width\fPx\fItrack_height\fP+\fItrack_x\fP+\fItrack_y\fP[/\fIborder_left\fP/\fIborder_top\fP/\fIborder_right\fP/\fIborder_bottom\fP]]]"
 This option sets the panning parameters.  As soon as panning is
@@ -127,6 +134,39 @@ pointer tracking area (which defaults to the same area). The last four
 parameters specify the border and default to 0. A width or height set to zero
 disables panning on the according axis. You typically have to set the screen
 size with \fI--fb\fP simultaneously.
+.IP "\-\-transform \fIa\fP,\fIb\fP,\fIc\fP,\fId\fP,\fIe\fP,\fIf\fP,\fIg\fP,\fIh\fP,\fIi\fP"
+Specifies a transformation matrix to apply on the output. Automatically a bilinear filter is selected.
+The mathematical form corresponds to:
+.RS 
+.RS 
+a b c
+.br
+d e f
+.br
+g h i
+.RE
+The transformation matrix multiplied by a coordinate vector of a pixel of the
+output (extended to 3 values) gives the approximate coordinate vector of a pixel
+in the graphic buffer. Typically, \fIa\fP and
+\fIe\fP corresponds to the scaling on the X and Y axes, \fIc\fP and \fIf\fP
+corresponds to the tranlastion on those axes, and \fIg\fP, \fIh\fP, and \fIi\fP
+are respectively 0, 0 and 1. It also allows to express a rotation of an angle T
+with:
+.RS 
+cos T  -sin T   0
+.br
+sin T   cos T   0
+.br
+ 0       0      1
+.RE
+As a special argument, instead of
+passing a matrix, one can pass the string \fInone\fP, in which case the default
+values are used (a unit matrix without filter).
+.IP "\-\-scale \fIx\fPx\fIy\fP"
+Changes the dimensions of the output picture. Values superior to 1 will lead to
+a compressed screen (screen dimension bigger than the dimension of the output
+mode), and values below 1 leads to a zoom in on the output. This option is
+actually a shortcut version of the \fI\-\-transform\fP option.
 .PP
 .SH "RandR version 1.2 options"
 These options are only available for X server supporting RandR version 1.2
@@ -249,6 +289,12 @@ xrandr --output VGA --mode 1024x768
 Enables panning on a 1600x768 desktop while displaying 1024x768 mode on an output called VGA:
 .RS 
 xrandr --fb 1600x768 --output VGA --mode 1024x768 --panning 1600x0
+.RE
+.PP
+Have one small 1280x800 LVDS screen showing a small version of a huge 3200x2000 desktop, and have a
+big VGA screen display the surrounding of the mouse at normal size.
+.RS 
+xrandr --fb 3200x2000 --output LVDS --scale 2.5x2.5 --output VGA --pos 0x0 --panning 3200x2000+0+0/3200x2000+0+0/64/64/64/64
 .RE
 .SH "SEE ALSO"
 Xrandr(3), cvt(1)

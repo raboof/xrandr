@@ -403,13 +403,13 @@ mode_width (XRRModeInfo *mode_info, Rotation rotation)
     }
 }
 
-Bool
+static Bool
 transform_point (XTransform *transform, double *xp, double *yp)
 {
     double  vector[3];
     double  result[3];
     int	    i, j;
-    double  partial, v;
+    double  v;
 
     vector[0] = *xp;
     vector[1] = *yp;
@@ -432,7 +432,7 @@ transform_point (XTransform *transform, double *xp, double *yp)
     return True;
 }
 
-Bool
+static void
 path_bounds (XTransform *transform, point_t *points, int npoints, box_t *box)
 {
     int	    i;
@@ -744,6 +744,7 @@ find_mode_by_xid (RRMode mode)
     return find_mode (&mode_name, 0);
 }
 
+#if 0
 static XRRModeInfo *
 find_mode_by_name (char *name)
 {
@@ -752,6 +753,7 @@ find_mode_by_name (char *name)
     set_name_string (&mode_name, name);
     return find_mode (&mode_name, 0);
 }
+#endif
 
 static
 XRRModeInfo *
@@ -795,7 +797,7 @@ find_mode_for_output (output_t *output, name_t *name)
     return best;
 }
 
-XRRModeInfo *
+static XRRModeInfo *
 preferred_mode (output_t *output)
 {
     XRROutputInfo   *output_info = output->output_info;
@@ -863,6 +865,7 @@ crtc_can_use_rotation (crtc_t *crtc, Rotation rotation)
     return False;
 }
 
+#if 0
 static Bool
 crtc_can_use_transform (crtc_t *crtc, XTransform *transform)
 {
@@ -873,6 +876,7 @@ crtc_can_use_transform (crtc_t *crtc, XTransform *transform)
 	return True;
     return False;
 }
+#endif
 
 /*
  * Report only rotations that are supported by all crtcs
@@ -1070,7 +1074,6 @@ get_crtcs (void)
 #if RANDR_MAJOR > 1 || RANDR_MINOR >= 3
 	XRRCrtcTransformAttributes  *attr;
 #endif
-	int	    x;
 	XRRPanning  *panning_info = NULL;
 
 	if (has_1_3)
@@ -1155,7 +1158,7 @@ set_panning (void)
 }
 
 static void
-set_gamma()
+set_gamma(void)
 {
     output_t	*output;
 
@@ -1378,7 +1381,7 @@ panic (Status s, crtc_t *crtc)
     exit (1);
 }
 
-void
+static void
 apply (void)
 {
     Status  s;
@@ -1465,7 +1468,7 @@ apply (void)
 /*
  * Use current output state to complete the output list
  */
-void
+static void
 get_outputs (void)
 {
     int		o;
@@ -1539,7 +1542,7 @@ get_outputs (void)
     }
 }
 
-void
+static void
 mark_changing_crtcs (void)
 {
     int	c;
@@ -1572,7 +1575,7 @@ mark_changing_crtcs (void)
 /*
  * Test whether 'crtc' can be used for 'output'
  */
-Bool
+static Bool
 check_crtc_for_output (crtc_t *crtc, output_t *output, Bool ignore_state)
 {
     int		c;
@@ -1638,7 +1641,7 @@ check_crtc_for_output (crtc_t *crtc, output_t *output, Bool ignore_state)
     return True;
 }
 
-crtc_t *
+static crtc_t *
 find_crtc_for_output (output_t *output)
 {
     int	    c;
@@ -1819,8 +1822,8 @@ set_screen_size (void)
 }
     
 #endif
-    
-void
+
+static void
 disable_outputs (output_t *outputs)
 {
     while (outputs)
@@ -1833,7 +1836,7 @@ disable_outputs (output_t *outputs)
 /*
  * find the best mapping from output to crtc available
  */
-int
+static int
 pick_crtcs_score (output_t *outputs)
 {
     output_t	*output;
@@ -1899,7 +1902,7 @@ pick_crtcs_score (output_t *outputs)
 /*
  * Pick crtcs for any changing outputs that don't have one
  */
-void
+static void
 pick_crtcs (void)
 {
     output_t	*output;
@@ -2588,6 +2591,8 @@ main (int argc, char **argv)
 		    nelements = strlen (prop->value);
 		    format = 8;
 		}
+		else
+		    continue;
 		XRRChangeOutputProperty (dpy, output->output.xid,
 					 name, type, format, PropModeReplace,
 					 data, nelements);
@@ -2728,7 +2733,7 @@ main (int argc, char **argv)
 			    mode->width, mode->height, output->x, output->y);
 		}
 		if (verbose)
-		    printf (" (0x%x)", mode->id);
+		    printf (" (0x%x)", (int)mode->id);
 		if (output->rotation != RR_Rotate_0 || verbose)
 		{
 		    printf (" %s", 
@@ -2764,7 +2769,7 @@ main (int argc, char **argv)
 	    if (mode)
 	    {
 		printf (" %dmm x %dmm",
-			output_info->mm_width, output_info->mm_height);
+			(int)output_info->mm_width, (int)output_info->mm_height);
 	    }
 
 	    if (crtc && crtc->panning_info && crtc->panning_info->width > 0)
@@ -2792,8 +2797,8 @@ main (int argc, char **argv)
 
 	    if (verbose)
 	    {
-		printf ("\tIdentifier: 0x%x\n", output->output.xid);
-		printf ("\tTimestamp:  %d\n", output_info->timestamp);
+		printf ("\tIdentifier: 0x%x\n", (int)output->output.xid);
+		printf ("\tTimestamp:  %d\n", (int)output_info->timestamp);
 		printf ("\tSubpixel:   %s\n", order[output_info->subpixel_order]);
 		printf ("\tClones:    ");
 		for (j = 0; j < output_info->nclone; j++)
@@ -2880,7 +2885,7 @@ main (int argc, char **argv)
 			    if (k > 0)
 				printf ("\n\t\t\t");
 			    printf("%d (0x%08x)",
-				   ((INT32 *)prop)[k], ((INT32 *)prop)[k]);
+				   (int)((INT32 *)prop)[k], (int)((INT32 *)prop)[k]);
 			}
 
  			if (propinfo->range && propinfo->num_values > 0) {
@@ -2890,8 +2895,8 @@ main (int argc, char **argv)
 				   (propinfo->num_values == 2) ? "" : "s");
 
 			    for (k = 0; k < propinfo->num_values / 2; k++)
-				printf(" (%d,%d)", propinfo->values[k * 2],
-				       propinfo->values[k * 2 + 1]);
+				printf(" (%d,%d)", (int)propinfo->values[k * 2],
+				       (int)propinfo->values[k * 2 + 1]);
 			}
 
 			printf("\n");
@@ -2924,7 +2929,7 @@ main (int argc, char **argv)
 			char	*type = actual_type ? XGetAtomName (dpy, actual_type) : "none";
 			printf ("\t%s: %s(%d) (format %d items %d) ????\n",
 				XGetAtomName (dpy, props[j]),
-				type, actual_type, actual_format, nitems);
+				type, (int)actual_type, actual_format, (int)nitems);
 		    }
 
 		    free(propinfo);
@@ -2939,7 +2944,7 @@ main (int argc, char **argv)
 		    int		f;
 		    
 		    printf ("  %s (0x%x) %6.1fMHz",
-			    mode->name, mode->id,
+			    mode->name, (int)mode->id,
 			    (float)mode->dotClock / 1000000.0);
 		    for (f = 0; mode_flags[f].flag; f++)
 			if (mode->modeFlags & mode_flags[f].flag)
@@ -3000,7 +3005,7 @@ main (int argc, char **argv)
 	    if (!(mode->modeFlags & ModeShown))
 	    {
 		printf ("  %s (0x%x) %6.1fMHz\n",
-			mode->name, mode->id,
+			mode->name, (int)mode->id,
 			(float)mode->dotClock / 1000000.0);
 		printf ("        h: width  %4d start %4d end %4d total %4d skew %4d clock %6.1fKHz\n",
 			mode->width, mode->hSyncStart, mode->hSyncEnd,

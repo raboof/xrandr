@@ -620,7 +620,7 @@ add_output (void)
     output_t *output = calloc (1, sizeof (output_t));
 
     if (!output)
-	fatal ("out of memory");
+	fatal ("out of memory\n");
     output->next = NULL;
     *outputs_tail = output;
     outputs_tail = &output->next;
@@ -1056,7 +1056,7 @@ get_screen (void)
 			   &maxWidth, &maxHeight);
     
     res = XRRGetScreenResources (dpy, root);
-    if (!res) fatal ("could not get screen resources");
+    if (!res) fatal ("could not get screen resources\n");
 }
 
 static void
@@ -1066,7 +1066,7 @@ get_crtcs (void)
 
     num_crtcs = res->ncrtc;
     crtcs = calloc (num_crtcs, sizeof (crtc_t));
-    if (!crtcs) fatal ("out of memory");
+    if (!crtcs) fatal ("out of memory\n");
     
     for (c = 0; c < res->ncrtc; c++)
     {
@@ -1081,7 +1081,7 @@ get_crtcs (void)
 
 	set_name_xid (&crtcs[c].crtc, res->crtcs[c]);
 	set_name_index (&crtcs[c].crtc, c);
-	if (!crtc_info) fatal ("could not get crtc 0x%x information", res->crtcs[c]);
+	if (!crtc_info) fatal ("could not get crtc 0x%x information\n", res->crtcs[c]);
 	crtcs[c].crtc_info = crtc_info;
 	crtcs[c].panning_info = panning_info;
 	if (crtc_info->mode == None)
@@ -1123,7 +1123,7 @@ crtc_add_output (crtc_t *crtc, output_t *output)
 	crtc->mode_info = output->mode_info;
 	copy_transform (&crtc->pending_transform, &output->transform);
    }
-    if (!crtc->outputs) fatal ("out of memory");
+    if (!crtc->outputs) fatal ("out of memory\n");
     crtc->outputs[crtc->noutput++] = output;
 }
 
@@ -1300,7 +1300,7 @@ crtc_apply (crtc_t *crtc)
 	    if (has_1_3)
 		s = XRRSetPanning (dpy, res, crtc->crtc.xid, crtc->panning_info);
 	    else
-		fatal ("panning needs RandR 1.3");
+		fatal ("panning needs RandR 1.3\n");
 	}
     }
     free (rr_outputs);
@@ -1478,7 +1478,7 @@ get_outputs (void)
 	XRROutputInfo	*output_info = XRRGetOutputInfo (dpy, res, res->outputs[o]);
 	output_t	*output;
 	name_t		output_name;
-	if (!output_info) fatal ("could not get output 0x%x information", res->outputs[o]);
+	if (!output_info) fatal ("could not get output 0x%x information\n", res->outputs[o]);
 	set_name_xid (&output_name, res->outputs[o]);
 	set_name_index (&output_name, o);
 	set_name_string (&output_name, output_info->name);

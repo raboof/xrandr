@@ -48,6 +48,7 @@ static int	screen = -1;
 static Bool	verbose = False;
 static Bool	automatic = False;
 static Bool	properties = False;
+static Bool	grab_server = True;
 
 static char *direction[5] = {
     "normal", 
@@ -106,6 +107,7 @@ usage(void)
     fprintf(stderr, "  --screen <screen>\n");
     fprintf(stderr, "  --verbose\n");
     fprintf(stderr, "  --dryrun\n");
+    fprintf(stderr, "  --nograb\n");
 #if HAS_RANDR_1_2
     fprintf(stderr, "  --prop or --properties\n");
     fprintf(stderr, "  --fb <width>x<height>\n");
@@ -1442,7 +1444,8 @@ apply (void)
      * event and ask for xinerama information from the server
      * receive up-to-date information
      */
-    XGrabServer (dpy);
+    if (grab_server)
+	XGrabServer (dpy);
     
     /*
      * Set the screen size
@@ -1461,11 +1464,15 @@ apply (void)
 	if (s != RRSetConfigSuccess)
 	    panic (s, crtc);
     }
+
+    set_primary ();
+
     /*
      * Release the server grab and let all clients
      * respond to the updated state
      */
-    XUngrabServer (dpy);
+    if (grab_server)
+	XUngrabServer (dpy);
 }
 
 /*
@@ -2009,6 +2016,10 @@ main (int argc, char **argv)
 	if (!strcmp ("--dryrun", argv[i])) {
 	    dryrun = True;
 	    verbose = True;
+	    continue;
+	}
+	if (!strcmp ("--nograb", argv[i])) {
+	    grab_server = False;
 	    continue;
 	}
 	if (!strcmp("--current", argv[i])) {

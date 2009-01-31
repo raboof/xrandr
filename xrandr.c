@@ -49,6 +49,7 @@ static Bool	verbose = False;
 static Bool	automatic = False;
 static Bool	properties = False;
 static Bool	grab_server = True;
+static Bool	no_primary = False;
 
 static char *direction[5] = {
     "normal", 
@@ -138,6 +139,7 @@ usage(void)
     fprintf(stderr, "      --panning <w>x<h>[+<x>+<y>[/<track:w>x<h>+<x>+<y>[/<border:l>/<t>/<r>/<b>]]]\n");
     fprintf(stderr, "      --gamma <r>:<g>:<b>\n");
     fprintf(stderr, "      --primary\n");
+    fprintf(stderr, "  --noprimary\n");
     fprintf(stderr, "  --newmode <name> <clock MHz>\n");
     fprintf(stderr, "            <hdisp> <hsync-start> <hsync-end> <htotal>\n");
     fprintf(stderr, "            <vdisp> <vsync-start> <vsync-end> <vtotal>\n");
@@ -1242,11 +1244,15 @@ set_primary(void)
 {
     output_t *output;
 
-    for (output = outputs; output; output = output->next) {
-	if (!(output->changes & changes_primary))
-	    continue;
-	if (output->primary)
-	    XRRSetOutputPrimary(dpy, root, output->output.xid);
+    if (no_primary) {
+	XRRSetOutputPrimary(dpy, root, None);
+    } else {
+	for (output = outputs; output; output = output->next) {
+	    if (!(output->changes & changes_primary))
+		continue;
+	    if (output->primary)
+		XRRSetOutputPrimary(dpy, root, output->output.xid);
+	}
     }
 }
 
@@ -2289,6 +2295,11 @@ main (int argc, char **argv)
 	    if (!output) usage();
 	    output->changes |= changes_primary;
 	    output->primary = True;
+	    setit_1_2 = True;
+	    continue;
+	}
+	if (!strcmp ("--noprimary", argv[i])) {
+	    no_primary = True;
 	    setit_1_2 = True;
 	    continue;
 	}

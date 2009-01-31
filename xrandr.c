@@ -137,6 +137,7 @@ usage(void)
     fprintf(stderr, "      --crtc <crtc>\n");
     fprintf(stderr, "      --panning <w>x<h>[+<x>+<y>[/<track:w>x<h>+<x>+<y>[/<border:l>/<t>/<r>/<b>]]]\n");
     fprintf(stderr, "      --gamma <r>:<g>:<b>\n");
+    fprintf(stderr, "      --primary\n");
     fprintf(stderr, "  --newmode <name> <clock MHz>\n");
     fprintf(stderr, "            <hdisp> <hsync-start> <hsync-end> <htotal>\n");
     fprintf(stderr, "            <vdisp> <vsync-start> <vsync-end> <vtotal>\n");
@@ -239,6 +240,7 @@ typedef enum _changes {
     changes_transform = (1 << 9),
     changes_panning = (1 << 10),
     changes_gamma = (1 << 11),
+    changes_primary = (1 << 12),
 } changes_t;
 
 typedef enum _name_kind {
@@ -326,6 +328,8 @@ struct _output {
 	float green;
 	float blue;
     } gamma;
+
+    Bool	    primary;
 };
 
 typedef enum _umode_action {
@@ -926,6 +930,14 @@ output_can_use_rotation (output_t *output, Rotation rotation)
     return True;
 }
 
+static Bool
+output_is_primary(output_t *output)
+{
+    if (has_1_3)
+	    return XRRGetOutputPrimary(dpy, root) == output->output.xid;
+    return False;
+}
+
 static void
 set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 {
@@ -1046,6 +1058,10 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 	else
 	    init_transform (&output->transform);
     }
+
+    /* set primary */
+    if (!(output->changes & changes_primary))
+	output->primary = output_is_primary(output);
 }
     
 static void
@@ -1218,6 +1234,19 @@ set_gamma(void)
 	XRRSetCrtcGamma(dpy, crtc->crtc.xid, gamma);
 
 	free(gamma);
+    }
+}
+
+static void
+set_primary(void)
+{
+    output_t *output;
+
+    for (output = outputs; output; output = output->next) {
+	if (!(output->changes & changes_primary))
+	    continue;
+	if (output->primary)
+	    XRRSetOutputPrimary(dpy, root, output->output.xid);
     }
 }
 
@@ -2253,6 +2282,13 @@ main (int argc, char **argv)
 		    &output->gamma.green, &output->gamma.blue) != 3)
 		usage ();
 	    output->changes |= changes_gamma;
+	    setit_1_2 = True;
+	    continue;
+	}
+	if (!strcmp ("--primary", argv[i])) {
+	    if (!output) usage();
+	    output->changes |= changes_primary;
+	    output->primary = True;
 	    setit_1_2 = True;
 	    continue;
 	}

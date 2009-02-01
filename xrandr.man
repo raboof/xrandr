@@ -38,12 +38,14 @@ xrandr \- primitive command line interface to RandR extension
 .B RandR version 1.3 options
 .br
 [\-\-current]
+[\-\-noprimary]
 .br
 .B Per-output options
 .br
 [\-\-panning \fIwidth\fPx\fIheight\fP[+\fIx\fP+\fIy\fP[/\fItrack_width\fPx\fItrack_height\fP+\fItrack_x\fP+\fItrack_y\fP[/\fIborder_left\fP/\fIborder_top\fP/\fIborder_right\fP/\fIborder_bottom\fP]]]]
 [\-\-scale \fIx\fPx\fIy\fP]
 [\-\-transform \fIa\fP,\fIb\fP,\fIc\fP,\fId\fP,\fIe\fP,\fIf\fP,\fIg\fP,\fIh\fP,\fIi\fP]
+[\-\-primary]
 .br
 .B RandR version 1.2 options
 .br
@@ -129,6 +131,8 @@ Options for RandR 1.3 are used as a superset of the options for RandR 1.2.
 .PP
 .IP \-\-current
 Return the current screen configuration, without polling for hardware changes.
+.IP \-\-noprimary
+Don't define a primary output.
 .PP
 .B "Per-output options"
 .IP "\-\-panning \fIwidth\fPx\fIheight\fP[+\fIx\fP+\fIy\fP[/\fItrack_width\fPx\fItrack_height\fP+\fItrack_x\fP+\fItrack_y\fP[/\fIborder_left\fP/\fIborder_top\fP/\fIborder_right\fP/\fIborder_bottom\fP]]]"
@@ -172,6 +176,9 @@ Changes the dimensions of the output picture. Values superior to 1 will lead to
 a compressed screen (screen dimension bigger than the dimension of the output
 mode), and values below 1 leads to a zoom in on the output. This option is
 actually a shortcut version of the \fI\-\-transform\fP option.
+.IP \-\-primary
+Set the output as primary.
+It will be sorted first in Xinerama and RANDR geometry requests.
 .PP
 .SH "RandR version 1.2 options"
 These options are only available for X server supporting RandR version 1.2

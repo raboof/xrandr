@@ -1099,8 +1099,16 @@ get_crtcs (void)
 #endif
 	XRRPanning  *panning_info = NULL;
 
-	if (has_1_3)
+	if (has_1_3) {
+	    XRRPanning zero;
+	    memset(&zero, 0, sizeof(zero));
 	    panning_info = XRRGetPanning  (dpy, res, res->crtcs[c]);
+	    zero.timestamp = panning_info->timestamp;
+	    if (!memcmp(panning_info, &zero, sizeof(zero))) {
+		Xfree(panning_info);
+		panning_info = NULL;
+	    }
+	}
 
 	set_name_xid (&crtcs[c].crtc, res->crtcs[c]);
 	set_name_index (&crtcs[c].crtc, c);

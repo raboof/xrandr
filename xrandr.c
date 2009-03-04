@@ -3217,7 +3217,7 @@ main (int argc, char **argv)
     if (setit && !dryrun) XRRSelectInput (dpy, root,
 			       RRScreenChangeNotifyMask);
     if (setit && !dryrun) status = XRRSetScreenConfigAndRate (dpy, sc,
-						   DefaultRootWindow (dpy), 
+						   root,
 						   (SizeID) size, (Rotation) (rotation | reflection), rate, CurrentTime);
 
     XRRQueryExtension(dpy, &event_base, &error_base);

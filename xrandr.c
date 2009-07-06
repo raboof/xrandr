@@ -37,6 +37,8 @@
 #include <stdarg.h>
 #include <math.h>
 
+#include "config.h"
+
 #if RANDR_MAJOR > 1 || (RANDR_MAJOR == 1 && RANDR_MINOR >= 2)
 #define HAS_RANDR_1_2 1
 #endif
@@ -2521,6 +2523,8 @@ main (int argc, char **argv)
 	if (setit && !setit_1_2)
 	    query_1 = True;
     }
+    if (version)
+	printf("xrandr program version       " VERSION "\n");
 
     dpy = XOpenDisplay (display_name);
 

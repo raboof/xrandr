@@ -1630,7 +1630,7 @@ mark_changing_crtcs (void)
 /*
  * Test whether 'crtc' can be used for 'output'
  */
-Bool
+static Bool
 check_crtc_for_output (crtc_t *crtc, output_t *output)
 {
     int		c;

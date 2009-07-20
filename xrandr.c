@@ -1438,6 +1438,15 @@ apply (void)
     int	    c;
     
     /*
+     * Hold the server grabbed while messing with
+     * the screen so that apps which notice the resize
+     * event and ask for xinerama information from the server
+     * receive up-to-date information
+     */
+    if (grab_server)
+	XGrabServer (dpy);
+    
+    /*
      * Turn off any crtcs which are to be disabled or which are
      * larger than the target size
      */
@@ -1483,15 +1492,6 @@ apply (void)
 	    panic (s, crtc);
     }
 
-    /*
-     * Hold the server grabbed while messing with
-     * the screen so that apps which notice the resize
-     * event and ask for xinerama information from the server
-     * receive up-to-date information
-     */
-    if (grab_server)
-	XGrabServer (dpy);
-    
     /*
      * Set the screen size
      */

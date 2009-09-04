@@ -334,6 +334,8 @@ struct _output {
     } gamma;
 
     Bool	    primary;
+
+    Bool	    found;
 };
 
 typedef enum _umode_action {
@@ -632,6 +634,7 @@ add_output (void)
     if (!output)
 	fatal ("out of memory\n");
     output->next = NULL;
+    output->found = False;
     *outputs_tail = output;
     outputs_tail = &output->next;
     return output;
@@ -1527,6 +1530,7 @@ static void
 get_outputs (void)
 {
     int		o;
+    output_t    *q;
     
     for (o = 0; o < res->noutput; o++)
     {
@@ -1565,6 +1569,7 @@ get_outputs (void)
 		}
 	    }
 	}
+	output->found = True;
 
 	/*
 	 * Automatic mode -- track connection state and enable/disable outputs
@@ -1594,6 +1599,14 @@ get_outputs (void)
 	}
 
 	set_output_info (output, res->outputs[o], output_info);
+    }
+    for (q = outputs; q; q = q->next)
+    {
+	if (!q->found)
+	{
+	    fprintf(stderr, "warning: output %s not found; ignoring\n",
+		    q->output.string);
+	}
     }
 }
 

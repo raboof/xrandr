@@ -2012,7 +2012,7 @@ pick_crtcs (void)
     }
 }
 
-int
+static int
 check_strtol(char *s)
 {
     char *endptr;
@@ -2022,7 +2022,7 @@ check_strtol(char *s)
     return result;
 }
 
-int
+static int
 check_strtod(char *s)
 {
     char *endptr;

@@ -326,6 +326,8 @@ struct _output {
 	float blue;
     } gamma;
 
+    float	    brightness;
+
     Bool	    primary;
 
     Bool	    found;
@@ -1215,24 +1217,33 @@ set_gamma(void)
 	    continue;
 	}
 
+	if(output->gamma.red == 0.0 && output->gamma.green == 0.0 && output->gamma.blue == 0.0)
+	    output->gamma.red = output->gamma.green = output->gamma.blue = 1.0;
+
+	if (output->brightness == 0.0)
+	    output->brightness = 1.0;
+
 	for (i = 0; i < size; i++) {
-	    if (output->gamma.red == 1.0)
+	    if (output->gamma.red == 1.0 && output->brightness == 1.0)
 		gamma->red[i] = i << 8;
 	    else
 		gamma->red[i] = (CARD16)(pow((double)i/(double)(size - 1),
-			    (double)output->gamma.red) * (double)(size - 1) * 256);
+			    (double)output->gamma.red) * (double)(size - 1)
+			    * (double)output->brightness * 256);
 
-	    if (output->gamma.green == 1.0)
+	    if (output->gamma.green == 1.0 && output->brightness == 1.0)
 		gamma->green[i] = i << 8;
 	    else
 		gamma->green[i] = (CARD16)(pow((double)i/(double)(size - 1),
-			    (double)output->gamma.green) * (double)(size - 1) * 256);
+			    (double)output->gamma.green) * (double)(size - 1)
+			    * (double)output->brightness * 256);
 
-	    if (output->gamma.blue == 1.0)
+	    if (output->gamma.blue == 1.0 && output->brightness == 1.0)
 		gamma->blue[i] = i << 8;
 	    else
 		gamma->blue[i] = (CARD16)(pow((double)i/(double)(size - 1),
-			    (double)output->gamma.blue) * (double)(size - 1) * 256);
+			    (double)output->gamma.blue) * (double)(size - 1)
+			    * (double)output->brightness * 256);
 	}
 
 	XRRSetCrtcGamma(dpy, crtc->crtc.xid, gamma);
@@ -2315,6 +2326,15 @@ main (int argc, char **argv)
 	    if (++i>=argc) usage ();
 	    if (sscanf(argv[i], "%f:%f:%f", &output->gamma.red, 
 		    &output->gamma.green, &output->gamma.blue) != 3)
+		usage ();
+	    output->changes |= changes_gamma;
+	    setit_1_2 = True;
+	    continue;
+	}
+	if (!strcmp ("--brightness", argv[i])) {
+	    if (!output) usage();
+	    if (++i>=argc) usage();
+	    if (sscanf(argv[i], "%f", &output->brightness) != 1)
 		usage ();
 	    output->changes |= changes_gamma;
 	    setit_1_2 = True;

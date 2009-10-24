@@ -77,6 +77,7 @@ xrandr \- primitive command line interface to RandR extension
 [\-\-off]
 [\-\-crtc \fIcrtc\fP]
 [\-\-gamma \fIred\fP:\fIgreen\fP:\fIblue\fP]
+[\-\-brightness \fIbrightness\fP]
 
 .br
 .B RandR version 1.0 and version 1.1 options
@@ -288,6 +289,9 @@ Set the specified floating point values as gamma correction on the crtc
 currently attached to this output. Note that you cannot get two different values
 for cloned outputs and that switching an output to another crtc doesn't change
 the crtc gamma corrections at all.
+.IP "\-\-brightness \fIbrightness\fP"
+Multiply the gamma values on the crtc currently attached to the output to
+specified floating value. Useful for overly bright or overly dim outputs.
 .PP
 .SH "RandR version 1.1 options"
 These options are available for X servers supporting RandR version 1.1 or

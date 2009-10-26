@@ -2042,7 +2042,8 @@ main (int argc, char **argv)
     short		*rates;
     Status	status = RRSetConfigFailed;
     int		rot = -1;
-    int		query = 0;
+    int		query = False;
+    int		action_requested = False;
     Rotation	rotation, current_rotation, rotations;
     XEvent	event;
     XRRScreenChangeNotifyEvent *sce;    
@@ -2073,7 +2074,6 @@ main (int argc, char **argv)
 #endif
 
     program_name = argv[0];
-    if (argc == 1) query = True;
     for (i = 1; i < argc; i++) {
 	if (!strcmp ("-display", argv[i]) || !strcmp ("-d", argv[i])) {
 	    if (++i>=argc) usage ();
@@ -2082,6 +2082,7 @@ main (int argc, char **argv)
 	}
 	if (!strcmp("-help", argv[i])) {
 	    usage();
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--verbose", argv[i])) {
@@ -2099,8 +2100,6 @@ main (int argc, char **argv)
 	}
 	if (!strcmp("--current", argv[i])) {
 	    current = True;
-	    /* if --current was the only arg, then query */
-	    if (argc == 2) query = True;
 	    continue;
 	}
 
@@ -2113,6 +2112,7 @@ main (int argc, char **argv)
                 if (size < 0) usage();
             }
 	    setit = True;
+	    action_requested = True;
 	    continue;
 	}
 
@@ -2131,28 +2131,33 @@ main (int argc, char **argv)
 		setit_1_2 = True;
 	    }
 #endif
+	    action_requested = True;
 	    continue;
 	}
 
 	if (!strcmp ("-v", argv[i]) || !strcmp ("--version", argv[i])) {
 	    version = True;
+	    action_requested = True;
 	    continue;
 	}
 
 	if (!strcmp ("-x", argv[i])) {
 	    reflection |= RR_Reflect_X;
 	    setit = True;
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("-y", argv[i])) {
 	    reflection |= RR_Reflect_Y;
 	    setit = True;
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--screen", argv[i])) {
 	    if (++i>=argc) usage ();
 	    screen = check_strtol(argv[i]);
 	    if (screen < 0) usage();
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("-q", argv[i]) || !strcmp ("--query", argv[i])) {
@@ -2171,6 +2176,7 @@ main (int argc, char **argv)
 	    }
 	    rot = dirind;
 	    setit = True;
+	    action_requested = True;
 	    continue;
 	}
 #if HAS_RANDR_1_2
@@ -2181,6 +2187,7 @@ main (int argc, char **argv)
 	{
 	    query_1_2 = True;
 	    properties = True;
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--output", argv[i])) {
@@ -2193,6 +2200,7 @@ main (int argc, char **argv)
 	    }
 	    
 	    setit_1_2 = True;
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--crtc", argv[i])) {
@@ -2414,6 +2422,7 @@ main (int argc, char **argv)
 			&fb_width, &fb_height) != 2)
 		usage ();
 	    setit_1_2 = True;
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--fbmm", argv[i])) {
@@ -2422,6 +2431,7 @@ main (int argc, char **argv)
 			&fb_width_mm, &fb_height_mm) != 2)
 		usage ();
 	    setit_1_2 = True;
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--dpi", argv[i])) {
@@ -2434,16 +2444,19 @@ main (int argc, char **argv)
 		dpi_output = argv[i];
 	    }
 	    setit_1_2 = True;
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--clone", argv[i])) {
 	    policy = clone;
 	    setit_1_2 = True;
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--extend", argv[i])) {
 	    policy = extend;
 	    setit_1_2 = True;
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--auto", argv[i])) {
@@ -2455,6 +2468,7 @@ main (int argc, char **argv)
 	    else
 		automatic = True;
 	    setit_1_2 = True;
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--q12", argv[i]))
@@ -2505,6 +2519,7 @@ main (int argc, char **argv)
 	    m->action = umode_create;
 	    umodes = m;
 	    modeit = True;
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--rmmode", argv[i]))
@@ -2517,6 +2532,7 @@ main (int argc, char **argv)
 	    m->next = umodes;
 	    umodes = m;
 	    modeit = True;
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--addmode", argv[i]))
@@ -2531,6 +2547,7 @@ main (int argc, char **argv)
 	    m->next = umodes;
 	    umodes = m;
 	    modeit = True;
+	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--delmode", argv[i]))
@@ -2545,11 +2562,14 @@ main (int argc, char **argv)
 	    m->next = umodes;
 	    umodes = m;
 	    modeit = True;
+	    action_requested = True;
 	    continue;
 	}
 #endif
 	usage();
     }
+    if (!action_requested)
+	    query = True;
     if (verbose) 
     {
 	query = True;

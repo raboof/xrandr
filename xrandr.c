@@ -2157,7 +2157,6 @@ main (int argc, char **argv)
 	    if (++i>=argc) usage ();
 	    screen = check_strtol(argv[i]);
 	    if (screen < 0) usage();
-	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("-q", argv[i]) || !strcmp ("--query", argv[i])) {
@@ -2368,6 +2367,7 @@ main (int argc, char **argv)
 	if (!strcmp ("--scale", argv[i]))
 	{
 	    double  sx, sy;
+	    if (!output) usage();
 	    if (++i>=argc) usage();
 	    if (sscanf (argv[i], "%lfx%lf", &sx, &sy) != 2)
 		usage ();
@@ -2387,6 +2387,7 @@ main (int argc, char **argv)
 	if (!strcmp ("--transform", argv[i])) {
 	    double  transform[3][3];
 	    int	    k, l;
+	    if (!output) usage();
 	    if (++i>=argc) usage ();
 	    init_transform (&output->transform);
 	    if (strcmp (argv[i], "none") != 0)

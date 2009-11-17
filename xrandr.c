@@ -111,10 +111,6 @@ usage(void)
     fprintf(stderr, "  --fb <width>x<height>\n");
     fprintf(stderr, "  --fbmm <width>x<height>\n");
     fprintf(stderr, "  --dpi <dpi>/<output>\n");
-#if 0
-    fprintf(stderr, "  --clone\n");
-    fprintf(stderr, "  --extend\n");
-#endif
     fprintf(stderr, "  --output <output>\n");
     fprintf(stderr, "      --auto\n");
     fprintf(stderr, "      --mode <mode>\n");
@@ -202,11 +198,6 @@ reflection_name (Rotation rotation)
     }
     return "invalid reflection";
 }
-
-typedef enum _policy {
-    policy_clone,
-    policy_extend
-} policy_t;
 
 typedef enum _relation {
     relation_left_of,
@@ -2066,7 +2057,6 @@ main (int argc, char **argv)
     Bool    	have_pixel_size = False;
     int		ret = 0;
     output_t	*output = NULL;
-    policy_t	policy = policy_clone;
     Bool    	setit_1_2 = False;
     Bool    	query_1_2 = False;
     Bool	modeit = False;
@@ -2452,18 +2442,6 @@ main (int argc, char **argv)
 		dpi = 0.0;
 		dpi_output = argv[i];
 	    }
-	    setit_1_2 = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--clone", argv[i])) {
-	    policy = policy_clone;
-	    setit_1_2 = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--extend", argv[i])) {
-	    policy = policy_extend;
 	    setit_1_2 = True;
 	    action_requested = True;
 	    continue;

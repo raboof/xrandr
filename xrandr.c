@@ -204,11 +204,16 @@ reflection_name (Rotation rotation)
 }
 
 typedef enum _policy {
-    clone, extend
+    policy_clone,
+    policy_extend
 } policy_t;
 
 typedef enum _relation {
-    left_of, right_of, above, below, same_as,
+    relation_left_of,
+    relation_right_of,
+    relation_above,
+    relation_below,
+    relation_same_as,
 } relation_t;
 
 typedef struct {
@@ -1769,23 +1774,23 @@ set_positions (void)
 	    }
 	    
 	    switch (output->relation) {
-	    case left_of:
+	    case relation_left_of:
 		output->y = relation->y;
 		output->x = relation->x - mode_width (output->mode_info, output->rotation);
 		break;
-	    case right_of:
+	    case relation_right_of:
 		output->y = relation->y;
 		output->x = relation->x + mode_width (relation->mode_info, relation->rotation);
 		break;
-	    case above:
+	    case relation_above:
 		output->x = relation->x;
 		output->y = relation->y - mode_height (output->mode_info, output->rotation);
 		break;
-	    case below:
+	    case relation_below:
 		output->x = relation->x;
 		output->y = relation->y + mode_height (relation->mode_info, relation->rotation);
 		break;
-	    case same_as:
+	    case relation_same_as:
 		output->x = relation->x;
 		output->y = relation->y;
 	    }
@@ -2061,7 +2066,7 @@ main (int argc, char **argv)
     Bool    	have_pixel_size = False;
     int		ret = 0;
     output_t	*output = NULL;
-    policy_t	policy = clone;
+    policy_t	policy = policy_clone;
     Bool    	setit_1_2 = False;
     Bool    	query_1_2 = False;
     Bool	modeit = False;
@@ -2254,7 +2259,7 @@ main (int argc, char **argv)
 	if (!strcmp ("--left-of", argv[i])) {
 	    if (++i>=argc) usage ();
 	    if (!output) usage();
-	    output->relation = left_of;
+	    output->relation = relation_left_of;
 	    output->relative_to = argv[i];
 	    output->changes |= changes_relation;
 	    continue;
@@ -2262,7 +2267,7 @@ main (int argc, char **argv)
 	if (!strcmp ("--right-of", argv[i])) {
 	    if (++i>=argc) usage ();
 	    if (!output) usage();
-	    output->relation = right_of;
+	    output->relation = relation_right_of;
 	    output->relative_to = argv[i];
 	    output->changes |= changes_relation;
 	    continue;
@@ -2270,7 +2275,7 @@ main (int argc, char **argv)
 	if (!strcmp ("--above", argv[i])) {
 	    if (++i>=argc) usage ();
 	    if (!output) usage();
-	    output->relation = above;
+	    output->relation = relation_above;
 	    output->relative_to = argv[i];
 	    output->changes |= changes_relation;
 	    continue;
@@ -2278,7 +2283,7 @@ main (int argc, char **argv)
 	if (!strcmp ("--below", argv[i])) {
 	    if (++i>=argc) usage ();
 	    if (!output) usage();
-	    output->relation = below;
+	    output->relation = relation_below;
 	    output->relative_to = argv[i];
 	    output->changes |= changes_relation;
 	    continue;
@@ -2286,7 +2291,7 @@ main (int argc, char **argv)
 	if (!strcmp ("--same-as", argv[i])) {
 	    if (++i>=argc) usage ();
 	    if (!output) usage();
-	    output->relation = same_as;
+	    output->relation = relation_same_as;
 	    output->relative_to = argv[i];
 	    output->changes |= changes_relation;
 	    continue;
@@ -2452,13 +2457,13 @@ main (int argc, char **argv)
 	    continue;
 	}
 	if (!strcmp ("--clone", argv[i])) {
-	    policy = clone;
+	    policy = policy_clone;
 	    setit_1_2 = True;
 	    action_requested = True;
 	    continue;
 	}
 	if (!strcmp ("--extend", argv[i])) {
-	    policy = extend;
+	    policy = policy_extend;
 	    setit_1_2 = True;
 	    action_requested = True;
 	    continue;

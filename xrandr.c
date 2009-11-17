@@ -39,10 +39,6 @@
 
 #include "config.h"
 
-#if RANDR_MAJOR > 1 || (RANDR_MAJOR == 1 && RANDR_MINOR >= 2)
-#define HAS_RANDR_1_2 1
-#endif
-
 static char	*program_name;
 static Display	*dpy;
 static Window	root;
@@ -111,7 +107,6 @@ usage(void)
     fprintf(stderr, "  --verbose\n");
     fprintf(stderr, "  --dryrun\n");
     fprintf(stderr, "  --nograb\n");
-#if HAS_RANDR_1_2
     fprintf(stderr, "  --prop or --properties\n");
     fprintf(stderr, "  --fb <width>x<height>\n");
     fprintf(stderr, "  --fbmm <width>x<height>\n");
@@ -149,7 +144,6 @@ usage(void)
     fprintf(stderr, "  --rmmode <name>\n");
     fprintf(stderr, "  --addmode <output> <name>\n");
     fprintf(stderr, "  --delmode <output> <name>\n");
-#endif
 
     exit(1);
     /*NOTREACHED*/
@@ -209,7 +203,6 @@ reflection_name (Rotation rotation)
     return "invalid reflection";
 }
 
-#if HAS_RANDR_1_2
 typedef enum _policy {
     clone, extend
 } policy_t;
@@ -1099,9 +1092,7 @@ get_crtcs (void)
     for (c = 0; c < res->ncrtc; c++)
     {
 	XRRCrtcInfo *crtc_info = XRRGetCrtcInfo (dpy, res, res->crtcs[c]);
-#if RANDR_MAJOR > 1 || RANDR_MINOR >= 3
 	XRRCrtcTransformAttributes  *attr;
-#endif
 	XRRPanning  *panning_info = NULL;
 
 	if (has_1_3) {
@@ -1127,7 +1118,6 @@ get_crtcs (void)
 	    crtcs[c].y = 0;
 	    crtcs[c].rotation = RR_Rotate_0;
 	}
-#if RANDR_MAJOR > 1 || RANDR_MINOR >= 3
 	if (XRRGetCrtcTransform (dpy, res->crtcs[c], &attr) && attr) {
 	    set_transform (&crtcs[c].current_transform,
 			   &attr->currentTransform,
@@ -1137,7 +1127,6 @@ get_crtcs (void)
 	    XFree (attr);
 	}
 	else
-#endif
 	{
 	    init_transform (&crtcs[c].current_transform);
 	}
@@ -1886,7 +1875,6 @@ set_screen_size (void)
     }
 }
     
-#endif
 
 static void
 disable_outputs (output_t *outputs)
@@ -2061,7 +2049,6 @@ main (int argc, char **argv)
     int		width = 0, height = 0;
     Bool    	have_pixel_size = False;
     int		ret = 0;
-#if HAS_RANDR_1_2
     output_t	*output = NULL;
     policy_t	policy = clone;
     Bool    	setit_1_2 = False;
@@ -2071,7 +2058,6 @@ main (int argc, char **argv)
     Bool	query_1 = False;
     int		major, minor;
     Bool	current = False;
-#endif
 
     program_name = argv[0];
     for (i = 1; i < argc; i++) {
@@ -2123,14 +2109,12 @@ main (int argc, char **argv)
 	    if (++i>=argc) usage ();
 	    rate = check_strtod(argv[i]);
 	    setit = True;
-#if HAS_RANDR_1_2
 	    if (output)
 	    {
 		output->refresh = rate;
 		output->changes |= changes_refresh;
 		setit_1_2 = True;
 	    }
-#endif
 	    action_requested = True;
 	    continue;
 	}
@@ -2178,7 +2162,6 @@ main (int argc, char **argv)
 	    action_requested = True;
 	    continue;
 	}
-#if HAS_RANDR_1_2
 	if (!strcmp ("--prop", argv[i]) ||
 	    !strcmp ("--props", argv[i]) ||
 	    !strcmp ("--madprops", argv[i]) ||
@@ -2566,7 +2549,6 @@ main (int argc, char **argv)
 	    action_requested = True;
 	    continue;
 	}
-#endif
 	usage();
     }
     if (!action_requested)
@@ -2596,7 +2578,6 @@ main (int argc, char **argv)
 
     root = RootWindow (dpy, screen);
 
-#if HAS_RANDR_1_2
     if (!XRRQueryVersion (dpy, &major, &minor))
     {
 	fprintf (stderr, "RandR extension missing\n");
@@ -3148,7 +3129,6 @@ main (int argc, char **argv)
 	}
 	exit (0);
     }
-#endif
     
     sc = XRRGetScreenInfo (dpy, root);
 

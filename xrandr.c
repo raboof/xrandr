@@ -2010,7 +2010,7 @@ check_strtol(char *s)
     return result;
 }
 
-static int
+static double
 check_strtod(char *s)
 {
     char *endptr;

@@ -182,7 +182,7 @@ Typically, \fIa\fP and
 \fIe\fP corresponds to the scaling on the X and Y axes, \fIc\fP and \fIf\fP
 corresponds to the translation on those axes, and \fIg\fP, \fIh\fP, and \fIi\fP
 are respectively 0, 0 and 1. The matrix can also be used to express more
-complex transformations such as keystone shaping, or rotation.  For a
+complex transformations such as keystone correction, or rotation.  For a
 rotation of an angle T, this formula can be used:
 .RS
 cos T  -sin T   0
@@ -336,8 +336,8 @@ big VGA screen display the surrounding of the mouse at normal size.
 xrandr --fb 3200x2000 --output LVDS --scale 2.5x2.5 --output VGA --pos 0x0 --panning 3200x2000+0+0/3200x2000+0+0/64/64/64/64
 .RE
 .PP
-Displays the VGA output in keystone shape so that it is projected correctly
-when the beamer is slightly above the screen:
+Displays the VGA output in trapezoid shape so that it is keystone corrected
+when the projector is slightly above the screen:
 .RS 
 xrandr --fb 1024x768 --output VGA --transform 1.24,0.16,-124,0,1.24,0,0,0.000316,1
 .RE

@@ -169,6 +169,12 @@ warning (const char *format, ...)
     va_end (ap);
 }
 
+/* Because fmin requires C99 suppport */
+static inline double dmin (double x, double y)
+{
+    return x < y ? x : y;
+}
+
 static char *
 rotation_name (Rotation rotation)
 {
@@ -626,6 +632,7 @@ add_output (void)
 	fatal ("out of memory\n");
     output->next = NULL;
     output->found = False;
+    output->brightness = 1.0;
     *outputs_tail = output;
     outputs_tail = &output->next;
     return output;
@@ -1216,30 +1223,27 @@ set_gamma(void)
 	if(output->gamma.red == 0.0 && output->gamma.green == 0.0 && output->gamma.blue == 0.0)
 	    output->gamma.red = output->gamma.green = output->gamma.blue = 1.0;
 
-	if (output->brightness == 0.0)
-	    output->brightness = 1.0;
-
 	for (i = 0; i < size; i++) {
 	    if (output->gamma.red == 1.0 && output->brightness == 1.0)
 		gamma->red[i] = i << 8;
 	    else
-		gamma->red[i] = (CARD16)(pow((double)i/(double)(size - 1),
+		gamma->red[i] = dmin(pow((double)i/(double)(size - 1),
 			    (double)output->gamma.red) * (double)(size - 1)
-			    * (double)output->brightness * 256);
+			    * (double)output->brightness * 256, 65535.0);
 
 	    if (output->gamma.green == 1.0 && output->brightness == 1.0)
 		gamma->green[i] = i << 8;
 	    else
-		gamma->green[i] = (CARD16)(pow((double)i/(double)(size - 1),
+		gamma->green[i] = dmin(pow((double)i/(double)(size - 1),
 			    (double)output->gamma.green) * (double)(size - 1)
-			    * (double)output->brightness * 256);
+			    * (double)output->brightness * 256, 65535);
 
 	    if (output->gamma.blue == 1.0 && output->brightness == 1.0)
 		gamma->blue[i] = i << 8;
 	    else
-		gamma->blue[i] = (CARD16)(pow((double)i/(double)(size - 1),
+		gamma->blue[i] = dmin(pow((double)i/(double)(size - 1),
 			    (double)output->gamma.blue) * (double)(size - 1)
-			    * (double)output->brightness * 256);
+			    * (double)output->brightness * 256, 65535);
 	}
 
 	XRRSetCrtcGamma(dpy, crtc->crtc.xid, gamma);

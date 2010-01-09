@@ -943,6 +943,96 @@ output_is_primary(output_t *output)
     return False;
 }
 
+/* Returns the index of the last value in an array < 0xffff */
+static int
+find_last_non_clamped(CARD16 array[], int size) {
+    int i;
+    for (i = size - 1; i > 0; i--) {
+        if (array[i] < 0xffff)
+	    return i;
+    }
+    return 0;
+}
+
+static void
+set_gamma_info(output_t *output)
+{
+    XRRCrtcGamma *gamma;
+    double i1, v1, i2, v2;
+    int size, middle, last_best, last_red, last_green, last_blue;
+    CARD16 *best_array;
+
+    if (!output->crtc_info)
+	return;
+
+    size = XRRGetCrtcGammaSize(dpy, output->crtc_info->crtc.xid);
+    if (!size) {
+	warning("Failed to get size of gamma for output %s\n", output->output.string);
+	return;
+    }
+
+    gamma = XRRGetCrtcGamma(dpy, output->crtc_info->crtc.xid);
+    if (!gamma) {
+	warning("Failed to get gamma for output %s\n", output->output.string);
+	return;
+    }
+
+    /*
+     * Here is a bit tricky because gamma is a whole curve for each
+     * color.  So, typically, we need to represent 3 * 256 values as 3 + 1
+     * values.  Therefore, we approximate the gamma curve (v) by supposing
+     * it always follows the way we set it: a power function (i^g)
+     * multiplied by a brightness (b).
+     * v = i^g * b
+     * so g = (ln(v) - ln(b))/ln(i)
+     * and b can be found using two points (v1,i1) and (v2, i2):
+     * b = e^((ln(v2)*ln(i1) - ln(v1)*ln(i2))/ln(i1/i2))
+     * For the best resolution, we select i2 at the highest place not
+     * clamped and i1 at i2/2. Note that if i2 = 1 (as in most normal
+     * cases), then b = v2.
+     */
+    last_red = find_last_non_clamped(gamma->red, size);
+    last_green = find_last_non_clamped(gamma->green, size);
+    last_blue = find_last_non_clamped(gamma->blue, size);
+    best_array = gamma->red;
+    last_best = last_red;
+    if (last_green > last_best) {
+	last_best = last_green;
+	best_array = gamma->green;
+    }
+    if (last_blue > last_best) {
+	last_best = last_blue;
+	best_array = gamma->blue;
+    }
+    if (last_best == 0)
+	last_best = 1;
+
+    middle = last_best / 2;
+    i1 = (double)(middle + 1) / size;
+    v1 = (double)(best_array[middle]) / 65535;
+    i2 = (double)(last_best + 1) / size;
+    v2 = (double)(best_array[last_best]) / 65535;
+    if (v2 < 0.0001) { /* The screen is black */
+	output->brightness = 0;
+	output->gamma.red = 1;
+	output->gamma.green = 1;
+	output->gamma.blue = 1;
+    } else {
+	if ((last_best + 1) == size)
+	    output->brightness = v2;
+	else
+	    output->brightness = exp((log(v2)*log(i1) - log(v1)*log(i2))/log(i1/i2));
+	output->gamma.red = log((double)(gamma->red[last_red / 2]) / output->brightness
+				/ 65535) / log((double)((last_red / 2) + 1) / size);
+	output->gamma.green = log((double)(gamma->green[last_green / 2]) / output->brightness
+				  / 65535) / log((double)((last_green / 2) + 1) / size);
+	output->gamma.blue = log((double)(gamma->blue[last_blue / 2]) / output->brightness
+				 / 65535) / log((double)((last_blue / 2) + 1) / size);
+    }
+
+    XRRFreeGamma(gamma);
+}
+
 static void
 set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 {
@@ -1054,6 +1144,10 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 	       output->output.string,
 	       rotation_name (output->rotation),
 	       reflection_name (output->rotation));
+
+    /* set gamma */
+    if (!(output->changes & changes_gamma))
+	    set_gamma_info(output);
 
     /* set transformation */
     if (!(output->changes & changes_transform))
@@ -2919,6 +3013,11 @@ main (int argc, char **argv)
 		printf ("\tIdentifier: 0x%x\n", (int)output->output.xid);
 		printf ("\tTimestamp:  %d\n", (int)output_info->timestamp);
 		printf ("\tSubpixel:   %s\n", order[output_info->subpixel_order]);
+	        if (output->gamma.red != 0.0 && output->gamma.green != 0.0 && output->gamma.blue != 0.0) {
+		    printf ("\tGamma:      %#.2g:%#.2g:%#.2g\n",
+			    output->gamma.red, output->gamma.green, output->gamma.blue);
+		    printf ("\tBrightness: %#.2g\n", output->brightness);
+		}
 		printf ("\tClones:    ");
 		for (j = 0; j < output_info->nclone; j++)
 		{

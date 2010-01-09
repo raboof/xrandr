@@ -105,7 +105,9 @@ Print out a summary of the usage and exit.
 Print out the RandR version reported by the X server and exit.
 .IP \-\-verbose
 Causes xrandr to be more verbose. When used with \-q (or without other
-options), xrandr will display more information about the server state. When
+options), xrandr will display more information about the server state. Please
+note that the gamma and brightness informations are only approximations of the
+complete color profile stored in the server. When
 used along with options that reconfigure the system, progress will be
 reported while executing the configuration changes.
 .IP "\-q, \-\-query"
@@ -287,11 +289,13 @@ for some reason, this option can override the normal selection.
 .IP "\-\-gamma \fIred\fP:\fIgreen\fP:\fIblue\fP"
 Set the specified floating point values as gamma correction on the crtc 
 currently attached to this output. Note that you cannot get two different values
-for cloned outputs and that switching an output to another crtc doesn't change
+for cloned outputs (i.e.: which share the same crtc) and that switching an output to another crtc doesn't change
 the crtc gamma corrections at all.
 .IP "\-\-brightness \fIbrightness\fP"
 Multiply the gamma values on the crtc currently attached to the output to
 specified floating value. Useful for overly bright or overly dim outputs.
+However, this is a software only modification, if your hardware has support to
+actually change the brightness, you will probably prefer to use \fBxbacklight\fR.
 .PP
 .SH "RandR version 1.1 options"
 These options are available for X servers supporting RandR version 1.1 or
@@ -342,7 +346,7 @@ when the projector is slightly above the screen:
 xrandr --fb 1024x768 --output VGA --transform 1.24,0.16,-124,0,1.24,0,0,0.000316,1
 .RE
 .SH "SEE ALSO"
-Xrandr(3), cvt(1), xkeystone(1)
+Xrandr(3), cvt(1), xkeystone(1), xbacklight(1)
 .SH AUTHORS
 Keith Packard,
 Open Source Technology Center, Intel Corporation.

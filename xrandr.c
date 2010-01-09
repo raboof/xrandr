@@ -1225,25 +1225,25 @@ set_gamma(void)
 
 	for (i = 0; i < size; i++) {
 	    if (output->gamma.red == 1.0 && output->brightness == 1.0)
-		gamma->red[i] = i << 8;
+		gamma->red[i] = (i << 8) + i;
 	    else
 		gamma->red[i] = dmin(pow((double)i/(double)(size - 1),
-			    (double)output->gamma.red) * (double)(size - 1)
-			    * (double)output->brightness * 256, 65535.0);
+					 output->gamma.red) * output->brightness,
+				     1.0) * 65535.0;
 
 	    if (output->gamma.green == 1.0 && output->brightness == 1.0)
-		gamma->green[i] = i << 8;
+		gamma->green[i] = (i << 8) + i;
 	    else
 		gamma->green[i] = dmin(pow((double)i/(double)(size - 1),
-			    (double)output->gamma.green) * (double)(size - 1)
-			    * (double)output->brightness * 256, 65535);
+					   output->gamma.green) * output->brightness,
+				       1.0) * 65535.0;
 
 	    if (output->gamma.blue == 1.0 && output->brightness == 1.0)
-		gamma->blue[i] = i << 8;
+		gamma->blue[i] = (i << 8) + i;
 	    else
 		gamma->blue[i] = dmin(pow((double)i/(double)(size - 1),
-			    (double)output->gamma.blue) * (double)(size - 1)
-			    * (double)output->brightness * 256, 65535);
+					  output->gamma.blue) * output->brightness,
+				      1.0) * 65535.0;
 	}
 
 	XRRSetCrtcGamma(dpy, crtc->crtc.xid, gamma);

@@ -19,9 +19,6 @@
 .\" TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 .\" PERFORMANCE OF THIS SOFTWARE.
 .\"
-.\"
-.\" $XFree86: xc/programs/xrandr/xrandr.man,v 1.6 2003/06/12 14:12:39 eich Exp $
-.\"
 .TH XRANDR __appmansuffix__ __vendorversion__
 .SH NAME
 xrandr \- primitive command line interface to RandR extension

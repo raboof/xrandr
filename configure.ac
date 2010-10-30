@@ -20,7 +20,7 @@ dnl  PERFORMANCE OF THIS SOFTWARE.
 dnl
 dnl Process this file with autoconf to create configure.
 
-AC_PREREQ([2.57])
+AC_PREREQ([2.60])
 AC_INIT(xrandr,[1.3.3], [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg],xrandr)
 AM_INIT_AUTOMAKE([foreign dist-bzip2])
 AM_MAINTAINER_MODE

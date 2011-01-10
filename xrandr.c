@@ -105,6 +105,7 @@ usage(void)
     fprintf(stderr, "  -y        (reflect in y)\n");
     fprintf(stderr, "  --screen <screen>\n");
     fprintf(stderr, "  --verbose\n");
+    fprintf(stderr, "  --current\n");
     fprintf(stderr, "  --dryrun\n");
     fprintf(stderr, "  --nograb\n");
     fprintf(stderr, "  --prop or --properties\n");

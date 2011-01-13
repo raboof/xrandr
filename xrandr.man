@@ -343,7 +343,7 @@ when the projector is slightly above the screen:
 xrandr --fb 1024x768 --output VGA --transform 1.24,0.16,-124,0,1.24,0,0,0.000316,1
 .RE
 .SH "SEE ALSO"
-Xrandr(3), cvt(1), xkeystone(1), xbacklight(1)
+Xrandr(__libmansuffix__), cvt(__appmansuffix__), xkeystone(__appmansuffix__), xbacklight(__appmansuffix__)
 .SH AUTHORS
 Keith Packard,
 Open Source Technology Center, Intel Corporation.

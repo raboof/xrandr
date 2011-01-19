@@ -39,4 +39,7 @@ AC_CHECK_LIB(m,floor)
 # Checks for pkg-config packages
 PKG_CHECK_MODULES(XRANDR, xrandr >= 1.3 xrender x11)
 
-AC_OUTPUT([Makefile])
+AC_CONFIG_FILES([
+	Makefile
+	man/Makefile])
+AC_OUTPUT

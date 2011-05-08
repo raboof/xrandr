@@ -88,7 +88,7 @@ static const struct {
     { NULL,	    0 }
 };
 
-static void
+static void _X_NORETURN
 usage(void)
 {
     fprintf(stderr, "usage: %s [options]\n", program_name);
@@ -146,7 +146,7 @@ usage(void)
     /*NOTREACHED*/
 }
 
-static void
+static void _X_NORETURN
 fatal (const char *format, ...)
 {
     va_list ap;
@@ -1509,7 +1509,7 @@ revert (void)
  * the configuration. Revert to the previous configuration
  * and bail
  */
-static void
+static void _X_NORETURN
 panic (Status s, crtc_t *crtc)
 {
     int	    c = crtc->crtc.index;

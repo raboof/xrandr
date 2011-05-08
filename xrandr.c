@@ -2755,7 +2755,7 @@ main (int argc, char **argv)
 	    {
 		Atom		name = XInternAtom (dpy, prop->name, False);
 		Atom		type;
-		int		format;
+		int		format = 0;
 		unsigned char	*data;
 		int		nelements;
 		int		int_value;
@@ -2767,7 +2767,6 @@ main (int argc, char **argv)
 		XRRPropertyInfo *propinfo;
 
 		type = AnyPropertyType;
-		format=0;
 		
 		if (XRRGetOutputProperty (dpy, output->output.xid, name,
 					  0, 100, False, False,
@@ -2797,7 +2796,6 @@ main (int argc, char **argv)
 		    ulong_value = XInternAtom (dpy, prop->value, False);
 		    data = (unsigned char *) &ulong_value;
 		    nelements = 1;
-		    format = 32;
 		}
 		else if ((type == XA_STRING || type == AnyPropertyType))
 		{

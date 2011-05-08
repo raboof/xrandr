@@ -2963,7 +2963,6 @@ main (int argc, char **argv)
 		    if ((rotations >> i) & 1) {
 			if (!first) printf (" "); first = False;
 			printf("%s", direction[i]);
-			first = False;
 		    }
 		}
 		if (rotations & RR_Reflect_X)
@@ -2973,7 +2972,7 @@ main (int argc, char **argv)
 		}
 		if (rotations & RR_Reflect_Y)
 		{
-		    if (!first) printf (" "); first = False;
+		    if (!first) printf (" ");
 		    printf ("y axis");
 		}
 		printf (")");

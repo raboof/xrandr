@@ -740,7 +740,6 @@ find_mode (name_t *name, double refresh)
 		bestDist = dist;
 		best = mode;
 	    }
-	    break;
 	}
     }
     return best;

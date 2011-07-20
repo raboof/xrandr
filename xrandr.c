@@ -137,7 +137,9 @@ usage(void)
     fprintf(stderr, "  --newmode <name> <clock MHz>\n");
     fprintf(stderr, "            <hdisp> <hsync-start> <hsync-end> <htotal>\n");
     fprintf(stderr, "            <vdisp> <vsync-start> <vsync-end> <vtotal>\n");
-    fprintf(stderr, "            [+HSync] [-HSync] [+VSync] [-VSync]\n");
+    fprintf(stderr, "            [flags...]\n");
+    fprintf(stderr, "            Valid flags: +HSync -HSync +VSync -VSync\n");
+    fprintf(stderr, "                         +CSync -CSync CSync Interlace DoubleScan\n");
     fprintf(stderr, "  --rmmode <name>\n");
     fprintf(stderr, "  --addmode <output> <name>\n");
     fprintf(stderr, "  --delmode <output> <name>\n");

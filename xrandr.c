@@ -1074,7 +1074,13 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
     /* set mode name and info */
     if (!(output->changes & changes_mode))
     {
-	if (output->crtc_info)
+	crtc_t	*crtc = NULL;
+	
+	if (output_info->crtc)
+	    crtc = find_crtc_by_xid(output_info->crtc);
+	if (crtc && crtc->crtc_info)
+	    set_name_xid (&output->mode, crtc->crtc_info->mode);
+	else if (output->crtc_info)
 	    set_name_xid (&output->mode, output->crtc_info->crtc_info->mode);
 	else
 	    set_name_xid (&output->mode, None);

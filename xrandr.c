@@ -32,6 +32,7 @@
 #include <X11/Xatom.h>
 #include <X11/extensions/Xrandr.h>
 #include <X11/extensions/Xrender.h>	/* we share subpixel information */
+#include <strings.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>

@@ -47,6 +47,7 @@ static int	screen = -1;
 static Bool	verbose = False;
 static Bool	automatic = False;
 static Bool	properties = False;
+static Bool	providers = False;
 static Bool	grab_server = True;
 static Bool	no_primary = False;
 
@@ -145,6 +146,9 @@ usage(void)
     fprintf(stderr, "  --rmmode <name>\n");
     fprintf(stderr, "  --addmode <output> <name>\n");
     fprintf(stderr, "  --delmode <output> <name>\n");
+    fprintf(stderr, "  --listproviders\n");
+    fprintf(stderr, "  --setprovideroutputsource <prov-xid> <source-xid>\n");
+    fprintf(stderr, "  --setprovideroffloadsink <prov-xid> <sink-xid>\n");
 
     exit(1);
     /*NOTREACHED*/
@@ -208,6 +212,22 @@ reflection_name (Rotation rotation)
 	return "X and Y axis";
     }
     return "invalid reflection";
+}
+
+static char *
+capability_name (int cap_bit)
+{
+    switch (cap_bit) {
+    case RR_Capability_SourceOutput:
+	return "Source Output";
+    case RR_Capability_SinkOutput:
+	return "Sink Output";
+    case RR_Capability_SourceOffload:
+	return "Source Offload";
+    case RR_Capability_SinkOffload:
+	return "Sink Offload";
+    }
+    return "invalid capability";
 }
 
 typedef enum _relation {
@@ -387,6 +407,7 @@ static Bool	dryrun = False;
 static int	minWidth, maxWidth, minHeight, maxHeight;
 static Bool    	has_1_2 = False;
 static Bool    	has_1_3 = False;
+static int      provider_xid, output_source_provider_xid, offload_sink_provider_xid;
 
 static int
 mode_height (XRRModeInfo *mode_info, Rotation rotation)
@@ -2230,6 +2251,8 @@ main (int argc, char **argv)
     Bool	modeit = False;
     Bool	propit = False;
     Bool	query_1 = False;
+    Bool        provsetoutsource = False;
+    Bool        provsetoffsink = False;
     int		major, minor;
     Bool	current = False;
 
@@ -2734,6 +2757,43 @@ main (int argc, char **argv)
 	    action_requested = True;
 	    continue;
 	}
+	if (!strcmp ("--listproviders", argv[i]))
+	{
+	    providers = True;
+	    action_requested = True;
+	    continue;
+	}
+	if (!strcmp("--setprovideroutputsource", argv[i]))
+	{ 
+	    if (++i>=argc) usage ();
+	    provider_xid = check_strtol(argv[i]);
+	    if (++i>=argc) 
+		output_source_provider_xid = 0;
+	    else
+		output_source_provider_xid = check_strtol(argv[i]);
+
+	    if (provider_xid == 0)
+		usage();
+	    action_requested = True;
+	    provsetoutsource = True;
+	    continue;
+	}
+	if (!strcmp("--setprovideroffloadsink", argv[i]))
+	{ 
+	    if (++i>=argc) usage ();
+	    provider_xid = check_strtol(argv[i]);
+	    if (++i>=argc) 
+		offload_sink_provider_xid = 0;
+	    else
+		offload_sink_provider_xid = check_strtol(argv[i]);
+
+	    if (provider_xid == 0)
+		usage();
+	    action_requested = True;
+	    provsetoffsink = True;
+	    continue;
+	}
+
 	usage();
     }
     if (!action_requested)
@@ -2899,6 +2959,14 @@ main (int argc, char **argv)
 	    XSync (dpy, False);
 	    exit (0);
 	}
+    }
+    if (has_1_2 && provsetoutsource)
+    {
+      XRRSetProviderOutputSource(dpy, provider_xid, output_source_provider_xid);
+    }
+    if (has_1_2 && provsetoffsink)
+    {
+      XRRSetProviderOffloadSink(dpy, provider_xid, offload_sink_provider_xid);
     }
     if (setit_1_2)
     {
@@ -3235,7 +3303,7 @@ main (int argc, char **argv)
 		    free(propinfo);
 		}
 	    }
-	    
+
 	    if (verbose)
 	    {
 		for (j = 0; j < output_info->nmode; j++)
@@ -3317,7 +3385,27 @@ main (int argc, char **argv)
 	}
 	exit (0);
     }
-    
+    if (providers) {
+	XRRProviderResources *providers;
+	int k;
+	get_screen (current);
+	providers = XRRGetProviderResources(dpy, root);
+	if (providers) {
+	    printf("Providers: number : %d\n", providers->nproviders);
+
+	    for (j = 0; j < providers->nproviders; j++) {
+	        XRRProviderInfo *info = XRRGetProviderInfo(dpy, res, providers->providers[j]);
+		printf("Provider %d: id: %d cap: 0x%x", j, (int)providers->providers[j], info->capabilities);
+		for (k = 0; k < 4; k++)
+			if (info->capabilities & (1 << k))
+				printf(", %s", capability_name(1<<k));
+
+		printf(" crtcs: %d outputs: %d associated providers: %d name:%s\n", info->ncrtcs, info->noutputs, info->nassociatedproviders, info->name);
+		XRRFreeProviderInfo(info);
+	    }
+	}
+    }
+
     sc = XRRGetScreenInfo (dpy, root);
 
     if (sc == NULL) 

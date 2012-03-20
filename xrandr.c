@@ -432,14 +432,15 @@ transform_point (XTransform *transform, double *xp, double *yp)
 	v = 0;
 	for (i = 0; i < 3; i++)
 	    v += (XFixedToDouble (transform->matrix[j][i]) * vector[i]);
-	if (v > 32767 || v < -32767)
-	    return False;
 	result[j] = v;
     }
     if (!result[2])
 	return False;
-    for (j = 0; j < 2; j++)
+    for (j = 0; j < 2; j++) {
 	vector[j] = result[j] / result[2];
+	if (vector[j] > 32767 || vector[j] < -32767)
+	    return False;
+    }
     *xp = vector[0];
     *yp = vector[1];
     return True;

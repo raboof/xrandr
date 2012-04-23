@@ -41,6 +41,7 @@ xrandr \- primitive command line interface to RandR extension
 .br
 [\-\-panning \fIwidth\fPx\fIheight\fP[+\fIx\fP+\fIy\fP[/\fItrack_width\fPx\fItrack_height\fP+\fItrack_x\fP+\fItrack_y\fP[/\fIborder_left\fP/\fIborder_top\fP/\fIborder_right\fP/\fIborder_bottom\fP]]]]
 [\-\-scale \fIx\fPx\fIy\fP]
+[\-\-scale-from \fIw\fPx\fIh\fP]
 [\-\-transform \fIa\fP,\fIb\fP,\fIc\fP,\fId\fP,\fIe\fP,\fIf\fP,\fIg\fP,\fIh\fP,\fIi\fP]
 [\-\-primary]
 .br
@@ -199,6 +200,10 @@ Changes the dimensions of the output picture. Values superior to 1 will lead to
 a compressed screen (screen dimension bigger than the dimension of the output
 mode), and values below 1 leads to a zoom in on the output. This option is
 actually a shortcut version of the \fI\-\-transform\fP option.
+.IP "\-\-scale-from \fIw\fPx\fIh\fP"
+Specifies the size in pixels of the area of the framebuffer to be displayed on
+this output.
+This option is actually a shortcut version of the \fI\-\-transform\fP option.
 .IP \-\-primary
 Set the output as primary.
 It will be sorted first in Xinerama and RANDR geometry requests.

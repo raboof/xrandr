@@ -128,6 +128,7 @@ usage(void)
     fprintf(stderr, "      --same-as <output>\n");
     fprintf(stderr, "      --set <property> <value>\n");
     fprintf(stderr, "      --scale <x>x<y>\n");
+    fprintf(stderr, "      --scale-from <w>x<h>\n");
     fprintf(stderr, "      --transform <a>,<b>,<c>,<d>,<e>,<f>,<g>,<h>,<i>\n");
     fprintf(stderr, "      --off\n");
     fprintf(stderr, "      --crtc <crtc>\n");
@@ -324,6 +325,7 @@ struct _output {
     XRRPanning      panning;
 
     Bool    	    automatic;
+    int     	    scale_from_w, scale_from_h;
     transform_t	    transform;
 
     struct {
@@ -1166,6 +1168,30 @@ set_output_info (output_t *output, RROutput xid, XRROutputInfo *output_info)
 	    copy_transform (&output->transform, &output->crtc_info->current_transform);
 	else
 	    init_transform (&output->transform);
+    } else {
+	/* transform was already set for --scale or --transform */
+
+	/* for --scale-from, figure out the mode size and compute the transform
+	 * for the target framebuffer area */
+	if (output->scale_from_w > 0 && output->mode_info) {
+	    double sx = (double)output->scale_from_w /
+				output->mode_info->width;
+	    double sy = (double)output->scale_from_h /
+				output->mode_info->height;
+	    if (verbose)
+		printf("scaling %s by %lfx%lf\n", output->output.string, sx,
+		       sy);
+	    init_transform (&output->transform);
+	    output->transform.transform.matrix[0][0] = XDoubleToFixed (sx);
+	    output->transform.transform.matrix[1][1] = XDoubleToFixed (sy);
+	    output->transform.transform.matrix[2][2] = XDoubleToFixed (1.0);
+	    if (sx != 1 || sy != 1)
+		output->transform.filter = "bilinear";
+	    else
+		output->transform.filter = "nearest";
+	    output->transform.nparams = 0;
+	    output->transform.params = NULL;
+	}
     }
 
     /* set primary */
@@ -2487,6 +2513,20 @@ main (int argc, char **argv)
 		output->transform.filter = "nearest";
 	    output->transform.nparams = 0;
 	    output->transform.params = NULL;
+	    output->changes |= changes_transform;
+	    continue;
+	}
+	if (!strcmp ("--scale-from", argv[i]))
+	{
+	    int w, h;
+	    if (!output) usage();
+	    if (++i>=argc) usage();
+	    if (sscanf (argv[i], "%dx%d", &w, &h) != 2)
+		usage ();
+	    if (w <=0 || h <= 0)
+		usage ();
+	    output->scale_from_w = w;
+	    output->scale_from_h = h;
 	    output->changes |= changes_transform;
 	    continue;
 	}

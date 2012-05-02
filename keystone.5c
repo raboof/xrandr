@@ -543,15 +543,14 @@ void main ()
     &box_t	hbox = Box::new (Box::dir_t.horizontal,
 				 Box::widget_item (&doit, 0),
 				 Box::widget_item (&show, 0),
-				 
 				 Box::widget_item (&quit, 0),
 				 Box::glue_item (1));
     &box_t	box = Box::new (Box::dir_t.vertical,
 				Box::box_item (&hbox),
-				Box::widget_item (label[0], 0),
-				Box::widget_item (label[1], 0),
-				Box::widget_item (label[2], 0),
-				Box::widget_item (&space, 0),
+				Box::widget_item (label[0], 1, 0),
+				Box::widget_item (label[1], 1, 0),
+				Box::widget_item (label[2], 1, 0),
+				Box::widget_item (&space, 1, 0),
 				Box::widget_item (&quad, 1));
     Nichrome::set_box (&nichrome, &box);
     Nichrome::main_loop (&nichrome);

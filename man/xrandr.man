@@ -31,22 +31,13 @@ xrandr \- primitive command line interface to RandR extension
 [\-\-screen \fIsnum\fP]
 [\-\-q1]
 [\-\-q12]
-.br
-.B RandR version 1.3 options
-.br
 [\-\-current]
 [\-\-noprimary]
-.br
-.B Per-output options
-.br
 [\-\-panning \fIwidth\fPx\fIheight\fP[+\fIx\fP+\fIy\fP[/\fItrack_width\fPx\fItrack_height\fP+\fItrack_x\fP+\fItrack_y\fP[/\fIborder_left\fP/\fIborder_top\fP/\fIborder_right\fP/\fIborder_bottom\fP]]]]
 [\-\-scale \fIx\fPx\fIy\fP]
 [\-\-scale-from \fIw\fPx\fIh\fP]
 [\-\-transform \fIa\fP,\fIb\fP,\fIc\fP,\fId\fP,\fIe\fP,\fIf\fP,\fIg\fP,\fIh\fP,\fIi\fP]
 [\-\-primary]
-.br
-.B RandR version 1.2 options
-.br
 [\-\-prop]
 [\-\-fb \fIwidth\fPx\fIheight\fP]
 [\-\-fbmm \fIwidth\fPx\fIheight\fP]
@@ -55,9 +46,6 @@ xrandr \- primitive command line interface to RandR extension
 [\-\-rmmode \fIname\fP]
 [\-\-addmode \fIoutput\fP \fIname\fP]
 [\-\-delmode \fIoutput\fP \fIname\fP]
-.br
-.B Per-output options
-.br
 [\-\-output \fIoutput\fP]
 [\-\-auto]
 [\-\-mode \fImode\fP]
@@ -76,10 +64,6 @@ xrandr \- primitive command line interface to RandR extension
 [\-\-crtc \fIcrtc\fP]
 [\-\-gamma \fIred\fP:\fIgreen\fP:\fIblue\fP]
 [\-\-brightness \fIbrightness\fP]
-
-.br
-.B RandR version 1.0 and version 1.1 options
-.br
 [\-o \fIorientation\fP]
 [\-s \fIsize\fP]
 [\-r \fIrate\fP]

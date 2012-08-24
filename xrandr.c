@@ -1326,6 +1326,9 @@ set_gamma(void)
 	int i, size;
 	crtc_t *crtc;
 	XRRCrtcGamma *gamma;
+	float gammaRed;
+	float gammaGreen;
+	float gammaBlue;
 
 	if (!(output->changes & changes_gamma))
 	    continue;
@@ -1350,29 +1353,37 @@ set_gamma(void)
 	    continue;
 	}
 
-	if(output->gamma.red == 0.0 && output->gamma.green == 0.0 && output->gamma.blue == 0.0)
-	    output->gamma.red = output->gamma.green = output->gamma.blue = 1.0;
+	if (output->gamma.red == 0.0)
+	    output->gamma.red = 1.0;
+	if (output->gamma.green == 0.0)
+	    output->gamma.green = 1.0;
+	if (output->gamma.blue == 0.0)
+	    output->gamma.blue = 1.0;
+
+	gammaRed = 1.0 / output->gamma.red;
+	gammaGreen = 1.0 / output->gamma.green;
+	gammaBlue = 1.0 / output->gamma.blue;
 
 	for (i = 0; i < size; i++) {
-	    if (output->gamma.red == 1.0 && output->brightness == 1.0)
+	    if (gammaRed == 1.0 && output->brightness == 1.0)
 		gamma->red[i] = (i << 8) + i;
 	    else
 		gamma->red[i] = dmin(pow((double)i/(double)(size - 1),
-					 output->gamma.red) * output->brightness,
+					 gammaRed) * output->brightness,
 				     1.0) * 65535.0;
 
-	    if (output->gamma.green == 1.0 && output->brightness == 1.0)
+	    if (gammaGreen == 1.0 && output->brightness == 1.0)
 		gamma->green[i] = (i << 8) + i;
 	    else
 		gamma->green[i] = dmin(pow((double)i/(double)(size - 1),
-					   output->gamma.green) * output->brightness,
+					   gammaGreen) * output->brightness,
 				       1.0) * 65535.0;
 
-	    if (output->gamma.blue == 1.0 && output->brightness == 1.0)
+	    if (gammaBlue == 1.0 && output->brightness == 1.0)
 		gamma->blue[i] = (i << 8) + i;
 	    else
 		gamma->blue[i] = dmin(pow((double)i/(double)(size - 1),
-					  output->gamma.blue) * output->brightness,
+					  gammaBlue) * output->brightness,
 				      1.0) * 65535.0;
 	}
 

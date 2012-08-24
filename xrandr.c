@@ -1323,7 +1323,7 @@ set_gamma(void)
     output_t	*output;
 
     for (output = outputs; output; output = output->next) {
-	int i, size;
+	int i, size, shift;
 	crtc_t *crtc;
 	XRRCrtcGamma *gamma;
 	float gammaRed;
@@ -1347,6 +1347,24 @@ set_gamma(void)
 	    continue;
 	}
 
+	/*
+	 * The gamma-correction lookup table managed through XRR[GS]etCrtcGamma
+	 * is 2^n in size, where 'n' is the number of significant bits in
+	 * the X Color.  Because an X Color is 16 bits, size cannot be larger
+	 * than 2^16.
+	 */
+	if (size > 65536) {
+	    fatal("Gamma correction table is impossibly large.\n");
+	    continue;
+	}
+
+	/*
+	 * The hardware color lookup table has a number of significant
+	 * bits equal to ffs(size) - 1; shift values so that they
+	 * occupy the MSBs of the 16-bit X Color.
+	 */
+	shift = 16 - (ffs(size) - 1);
+
 	gamma = XRRAllocGamma(size);
 	if (!gamma) {
 	    fatal("Gamma allocation failed.\n");
@@ -1366,21 +1384,21 @@ set_gamma(void)
 
 	for (i = 0; i < size; i++) {
 	    if (gammaRed == 1.0 && output->brightness == 1.0)
-		gamma->red[i] = (i << 8) + i;
+		gamma->red[i] = (i << shift);
 	    else
 		gamma->red[i] = dmin(pow((double)i/(double)(size - 1),
 					 gammaRed) * output->brightness,
 				     1.0) * 65535.0;
 
 	    if (gammaGreen == 1.0 && output->brightness == 1.0)
-		gamma->green[i] = (i << 8) + i;
+		gamma->green[i] = (i << shift);
 	    else
 		gamma->green[i] = dmin(pow((double)i/(double)(size - 1),
 					   gammaGreen) * output->brightness,
 				       1.0) * 65535.0;
 
 	    if (gammaBlue == 1.0 && output->brightness == 1.0)
-		gamma->blue[i] = (i << 8) + i;
+		gamma->blue[i] = (i << shift);
 	    else
 		gamma->blue[i] = dmin(pow((double)i/(double)(size - 1),
 					  gammaBlue) * output->brightness,

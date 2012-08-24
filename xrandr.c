@@ -1360,8 +1360,9 @@ set_gamma(void)
 
 	/*
 	 * The hardware color lookup table has a number of significant
-	 * bits equal to ffs(size) - 1; shift values so that they
-	 * occupy the MSBs of the 16-bit X Color.
+	 * bits equal to ffs(size) - 1; compute all values so that
+	 * they are in the range [0,size) then shift the values so
+	 * that they occupy the MSBs of the 16-bit X Color.
 	 */
 	shift = 16 - (ffs(size) - 1);
 
@@ -1384,25 +1385,28 @@ set_gamma(void)
 
 	for (i = 0; i < size; i++) {
 	    if (gammaRed == 1.0 && output->brightness == 1.0)
-		gamma->red[i] = (i << shift);
+		gamma->red[i] = i;
 	    else
 		gamma->red[i] = dmin(pow((double)i/(double)(size - 1),
 					 gammaRed) * output->brightness,
-				     1.0) * 65535.0;
+				     1.0) * (double)(size - 1);
+	    gamma->red[i] <<= shift;
 
 	    if (gammaGreen == 1.0 && output->brightness == 1.0)
-		gamma->green[i] = (i << shift);
+		gamma->green[i] = i;
 	    else
 		gamma->green[i] = dmin(pow((double)i/(double)(size - 1),
 					   gammaGreen) * output->brightness,
-				       1.0) * 65535.0;
+				       1.0) * (double)(size - 1);
+	    gamma->green[i] <<= shift;
 
 	    if (gammaBlue == 1.0 && output->brightness == 1.0)
-		gamma->blue[i] = (i << shift);
+		gamma->blue[i] = i;
 	    else
 		gamma->blue[i] = dmin(pow((double)i/(double)(size - 1),
 					  gammaBlue) * output->brightness,
-				      1.0) * 65535.0;
+				      1.0) * (double)(size - 1);
+	    gamma->blue[i] <<= shift;
 	}
 
 	XRRSetCrtcGamma(dpy, crtc->crtc.xid, gamma);

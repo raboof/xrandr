@@ -50,14 +50,14 @@ static Bool	properties = False;
 static Bool	grab_server = True;
 static Bool	no_primary = False;
 
-static char *direction[5] = {
+static const char *direction[5] = {
     "normal", 
     "left", 
     "inverted", 
     "right",
     "\n"};
 
-static char *reflections[5] = {
+static const char *reflections[5] = {
     "normal", 
     "x", 
     "y", 
@@ -65,7 +65,7 @@ static char *reflections[5] = {
     "\n"};
 
 /* subpixel order */
-static char *order[6] = {
+static const char *order[6] = {
     "unknown",
     "horizontal rgb",
     "horizontal bgr",
@@ -74,7 +74,7 @@ static char *order[6] = {
     "no subpixels"};
 
 static const struct {
-    char	    *string;
+    const char	    *string;
     unsigned long   flag;
 } mode_flags[] = {
     { "+HSync", RR_HSyncPositive },
@@ -180,7 +180,7 @@ static inline double dmin (double x, double y)
     return x < y ? x : y;
 }
 
-static char *
+static const char *
 rotation_name (Rotation rotation)
 {
     int	i;
@@ -193,7 +193,7 @@ rotation_name (Rotation rotation)
     return "invalid rotation";
 }
 
-static char *
+static const char *
 reflection_name (Rotation rotation)
 {
     rotation &= (RR_Reflect_X|RR_Reflect_Y);
@@ -270,7 +270,7 @@ typedef struct _output_prop output_prop_t;
 
 struct _transform {
     XTransform	    transform;
-    char	    *filter;
+    const char	    *filter;
     int		    nparams;
     XFixed	    *params;
 };
@@ -355,7 +355,7 @@ struct _umode {
     name_t	    name;
 };
 
-static char *connection[3] = {
+static const char *connection[3] = {
     "connected",
     "disconnected",
     "unknown connection"};
@@ -598,11 +598,12 @@ init_transform (transform_t *transform)
 static void
 set_transform (transform_t  *dest,
 	       XTransform   *transform,
-	       char	    *filter,
+	       const char   *filter,
 	       XFixed	    *params,
 	       int	    nparams)
 {
     dest->transform = *transform;
+    /* note: this string is leaked */
     dest->filter = strdup (filter);
     dest->nparams = nparams;
     dest->params = malloc (nparams * sizeof (XFixed));
@@ -1581,7 +1582,7 @@ static void _X_NORETURN
 panic (Status s, crtc_t *crtc)
 {
     int	    c = crtc->crtc.index;
-    char    *message;
+    const char *message;
     
     switch (s) {
     case RRSetConfigSuccess:		message = "succeeded";		    break;
@@ -3225,7 +3226,7 @@ main (int argc, char **argv)
 			printf ("\t%s: %s%s\n", XGetAtomName (dpy, props[j]),
 				prop, bytes_after ? "..." : "");
 		    } else {
-			char	*type = actual_type ? XGetAtomName (dpy, actual_type) : "none";
+			const char *type = actual_type ? XGetAtomName (dpy, actual_type) : "none";
 			printf ("\t%s: %s(%d) (format %d items %d) ????\n",
 				XGetAtomName (dpy, props[j]),
 				type, (int)actual_type, actual_format, (int)nitems);

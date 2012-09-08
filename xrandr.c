@@ -35,6 +35,7 @@
 #include <strings.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdarg.h>
 #include <math.h>
 
@@ -2216,6 +2217,82 @@ check_strtod(char *s)
     return result;
 }
 
+
+static void *
+property_values_from_string(const char *str, const Atom type, const int format,
+                            int *returned_nitems)
+{
+    char *token, *tmp;
+    void *returned_bytes = NULL;
+    int nitems = 0, bytes_per_item = format / 8;
+
+    if ((type != XA_INTEGER && type != XA_CARDINAL) ||
+	(format != 8 && format != 16 && format != 32))
+    {
+	return NULL;
+    }
+
+    tmp = strdup (str);
+
+    for (token = strtok (tmp, ","); token; token = strtok (NULL, ","))
+    {
+	char *endptr;
+	long int val = strtol (token, &endptr, 0);
+
+	if (token == endptr || *endptr != '\0')
+	{
+	    usage ();
+	}
+
+	returned_bytes = realloc (returned_bytes, (nitems + 1) * bytes_per_item);
+
+	if (type == XA_INTEGER && format == 8)
+	{
+	    int8_t *ptr = returned_bytes;
+	    ptr[nitems] = (int8_t) val;
+	}
+	else if (type == XA_INTEGER && format == 16)
+	{
+	    int16_t *ptr = returned_bytes;
+	    ptr[nitems] = (int16_t) val;
+	}
+	else if (type == XA_INTEGER && format == 32)
+	{
+	    int32_t *ptr = returned_bytes;
+	    ptr[nitems] = (int32_t) val;
+	}
+	else if (type == XA_CARDINAL && format == 8)
+	{
+	    uint8_t *ptr = returned_bytes;
+	    ptr[nitems] = (uint8_t) val;
+	}
+	else if (type == XA_CARDINAL && format == 16)
+	{
+	    uint16_t *ptr = returned_bytes;
+	    ptr[nitems] = (uint16_t) val;
+	}
+	else if (type == XA_CARDINAL && format == 32)
+	{
+	    uint32_t *ptr = returned_bytes;
+	    ptr[nitems] = (uint32_t) val;
+	}
+	else
+	{
+	    free (tmp);
+	    free (returned_bytes);
+	    return NULL;
+	}
+
+	nitems++;
+    }
+
+    free (tmp);
+
+    *returned_nitems = nitems;
+    return returned_bytes;
+}
+
+
 int
 main (int argc, char **argv)
 {
@@ -2899,7 +2976,7 @@ main (int argc, char **argv)
 		Atom		name = XInternAtom (dpy, prop->name, False);
 		Atom		type;
 		int		format = 0;
-		unsigned char	*data;
+		unsigned char	*data, *malloced_data = NULL;
 		int		nelements;
 		int		int_value;
 		unsigned long	ulong_value;
@@ -2923,8 +3000,17 @@ main (int argc, char **argv)
 		    type = actual_type;
 		    format = actual_format;
 		}
-		
-		if ((type == XA_INTEGER || type == AnyPropertyType) &&
+
+		malloced_data = property_values_from_string
+		    (prop->value, type, actual_format, &nelements);
+
+		if (malloced_data)
+		{
+		    data = malloced_data;
+		    type = actual_type;
+		    format = actual_format;
+		}
+		else if (type == AnyPropertyType &&
 		    (sscanf (prop->value, "%d", &int_value) == 1 ||
 		     sscanf (prop->value, "0x%x", &int_value) == 1))
 		{
@@ -2952,6 +3038,7 @@ main (int argc, char **argv)
 		XRRChangeOutputProperty (dpy, output->output.xid,
 					 name, type, format, PropModeReplace,
 					 data, nelements);
+		free (malloced_data);
 	    }
 	}
 	if (!setit_1_2)

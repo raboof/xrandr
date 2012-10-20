@@ -214,7 +214,7 @@ reflection_name (Rotation rotation)
     return "invalid reflection";
 }
 
-static char *
+static const char *
 capability_name (int cap_bit)
 {
     switch (cap_bit) {
@@ -2218,7 +2218,7 @@ main (int argc, char **argv)
     XEvent	event;
     XRRScreenChangeNotifyEvent *sce;    
     char          *display_name = NULL;
-    int 		i, j;
+    int 		i;
     SizeID	current_size;
     short	current_rate;
     double    	rate = -1;
@@ -3067,7 +3067,7 @@ main (int argc, char **argv)
 	    XRRCrtcInfo	    *crtc_info = crtc ? crtc->crtc_info : NULL;
 	    XRRModeInfo	    *mode = output->mode_info;
 	    Atom	    *props;
-	    int		    j, k, nprop;
+	    int		    j, nprop;
 	    Bool	    *mode_shown;
 	    Rotation	    rotations = output_rotations (output);
 
@@ -3234,6 +3234,7 @@ main (int argc, char **argv)
 		    } else if (actual_type == XA_INTEGER &&
 			       actual_format == 32)
 		    {
+			int k;
 			printf("\t%s: ", XGetAtomName (dpy, props[j]));
 			for (k = 0; k < nitems; k++) {
 			    if (k > 0)
@@ -3257,6 +3258,7 @@ main (int argc, char **argv)
 		    } else if (actual_type == XA_ATOM &&
 			       actual_format == 32)
 		    {
+			int k;
 			printf("\t%s:", XGetAtomName (dpy, props[j]));
 			for (k = 0; k < nitems; k++) {
 			    if (k > 0 && (k & 1) == 0)
@@ -3323,6 +3325,7 @@ main (int argc, char **argv)
 		if (!mode_shown) fatal ("out of memory\n");
 		for (j = 0; j < output_info->nmode; j++)
 		{
+		    int k;
 		    XRRModeInfo *jmode, *kmode;
 		    
 		    if (mode_shown[j]) continue;
@@ -3373,7 +3376,7 @@ main (int argc, char **argv)
     }
     if (providers) {
 	XRRProviderResources *providers;
-	int k;
+	int j, k;
 	get_screen (current);
 	providers = XRRGetProviderResources(dpy, root);
 	if (providers) {
@@ -3458,6 +3461,7 @@ main (int argc, char **argv)
     }
 
     if (query || query_1) {
+        int j;
 	printf(" SZ:    Pixels          Physical       Refresh\n");
 	for (i = 0; i < nsize; i++) {
 	    printf ("%c%-2d %5d x %-5d  (%4dmm x%4dmm )",

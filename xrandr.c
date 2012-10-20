@@ -1874,20 +1874,6 @@ check_crtc_for_output (crtc_t *crtc, output_t *output)
 	if (!equal_transform (&crtc->current_transform, &output->transform))
 	    return False;
     }
-    else if (crtc->crtc_info->noutput)
-    {
-	/* make sure the state matches the already used state */
-	XRRModeInfo *mode = find_mode_by_xid (crtc->crtc_info->mode);
-
-	if (mode != output->mode_info)
-	    return False;
-	if (crtc->crtc_info->x != output->x)
-	    return False;
-	if (crtc->crtc_info->y != output->y)
-	    return False;
-	if (crtc->crtc_info->rotation != output->rotation)
-	    return False;
-    }
     return True;
 }
 

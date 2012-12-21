@@ -262,9 +262,9 @@ output, so it is not valid to say \-\-output a \-\-left\-of b \-\-output
 b \-\-left\-of a.
 .IP "\-\-set \fIproperty\fP \fIvalue\fP"
 Sets an output property. Integer properties may be specified as a valid
-(see \-\-prop) decimal or hexadecimal (with a leading 0x) value. Atom properties
-may be set to any of the valid atoms (see \-\-prop). String properties may be
-set to any value.
+(see \-\-prop) comma-separated list of decimal or hexadecimal (with a leading 0x) values.
+Atom properties may be set to any of the valid atoms (see \-\-prop).
+String properties may be set to any value.
 .IP "\-\-off"
 Disables the output.
 .IP "\-\-crtc \fIcrtc\fP"

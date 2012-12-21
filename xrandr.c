@@ -35,6 +35,8 @@
 #include <strings.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <inttypes.h>
 #include <stdarg.h>
 #include <math.h>
 
@@ -2202,6 +2204,157 @@ check_strtod(char *s)
     return result;
 }
 
+
+static void *
+property_values_from_string(const char *str, const Atom type, const int format,
+                            int *returned_nitems)
+{
+    char *token, *tmp;
+    void *returned_bytes = NULL;
+    int nitems = 0, bytes_per_item = format / 8;
+
+    if ((type != XA_INTEGER && type != XA_CARDINAL) ||
+	(format != 8 && format != 16 && format != 32))
+    {
+	return NULL;
+    }
+
+    tmp = strdup (str);
+
+    for (token = strtok (tmp, ","); token; token = strtok (NULL, ","))
+    {
+	char *endptr;
+	long int val = strtol (token, &endptr, 0);
+
+	if (token == endptr || *endptr != '\0')
+	{
+	    usage ();
+	}
+
+	returned_bytes = realloc (returned_bytes, (nitems + 1) * bytes_per_item);
+
+	if (type == XA_INTEGER && format == 8)
+	{
+	    int8_t *ptr = returned_bytes;
+	    ptr[nitems] = (int8_t) val;
+	}
+	else if (type == XA_INTEGER && format == 16)
+	{
+	    int16_t *ptr = returned_bytes;
+	    ptr[nitems] = (int16_t) val;
+	}
+	else if (type == XA_INTEGER && format == 32)
+	{
+	    int32_t *ptr = returned_bytes;
+	    ptr[nitems] = (int32_t) val;
+	}
+	else if (type == XA_CARDINAL && format == 8)
+	{
+	    uint8_t *ptr = returned_bytes;
+	    ptr[nitems] = (uint8_t) val;
+	}
+	else if (type == XA_CARDINAL && format == 16)
+	{
+	    uint16_t *ptr = returned_bytes;
+	    ptr[nitems] = (uint16_t) val;
+	}
+	else if (type == XA_CARDINAL && format == 32)
+	{
+	    uint32_t *ptr = returned_bytes;
+	    ptr[nitems] = (uint32_t) val;
+	}
+	else
+	{
+	    free (tmp);
+	    free (returned_bytes);
+	    return NULL;
+	}
+
+	nitems++;
+    }
+
+    free (tmp);
+
+    *returned_nitems = nitems;
+    return returned_bytes;
+}
+
+
+static void
+print_output_property_value(Bool is_edid,
+                            int value_format, /* 8, 16, 32 */
+                            Atom value_type,  /* XA_{ATOM,INTEGER,CARDINAL} */
+                            const void *value_bytes)
+{
+    /* special-case the EDID */
+    if (is_edid && value_format == 8)
+    {
+	const uint8_t *val = value_bytes;
+	printf ("%02" PRIx8, *val);
+	return;
+    }
+
+    if (value_type == XA_ATOM && value_format == 32)
+    {
+	const Atom *val = value_bytes;
+	char *str = XGetAtomName (dpy, *val);
+	if (str != NULL)
+	{
+	    printf ("%s", str);
+	    XFree (str);
+	    return;
+	}
+    }
+
+    if (value_type == XA_INTEGER)
+    {
+	if (value_format == 8)
+	{
+	    const int8_t *val = value_bytes;
+	    printf ("%" PRId8, *val);
+	    return;
+	}
+	if (value_format == 16)
+	{
+	    const int16_t *val = value_bytes;
+	    printf ("%" PRId16, *val);
+	    return;
+	}
+	if (value_format == 32)
+	{
+	    const int32_t *val = value_bytes;
+	    printf ("%" PRId32, *val);
+	    return;
+	}
+    }
+
+    if (value_type == XA_CARDINAL)
+    {
+	if (value_format == 8)
+	{
+	    const uint8_t *val = value_bytes;
+	    printf ("%" PRIu8, *val);
+	    return;
+	}
+	if (value_format == 16)
+	{
+	    const uint16_t *val = value_bytes;
+	    printf ("%" PRIu16, *val);
+	    return;
+	}
+	if (value_format == 32)
+	{
+	    const uint32_t *val = value_bytes;
+	    printf ("%" PRIu32, *val);
+	    return;
+	}
+    }
+
+    printf ("?");
+}
+
+
+
 int
 main (int argc, char **argv)
 {
@@ -2885,7 +3038,7 @@ main (int argc, char **argv)
 		Atom		name = XInternAtom (dpy, prop->name, False);
 		Atom		type;
 		int		format = 0;
-		unsigned char	*data;
+		unsigned char	*data, *malloced_data = NULL;
 		int		nelements;
 		int		int_value;
 		unsigned long	ulong_value;
@@ -2909,8 +3062,17 @@ main (int argc, char **argv)
 		    type = actual_type;
 		    format = actual_format;
 		}
-		
-		if ((type == XA_INTEGER || type == AnyPropertyType) &&
+
+		malloced_data = property_values_from_string
+		    (prop->value, type, actual_format, &nelements);
+
+		if (malloced_data)
+		{
+		    data = malloced_data;
+		    type = actual_type;
+		    format = actual_format;
+		}
+		else if (type == AnyPropertyType &&
 		    (sscanf (prop->value, "%d", &int_value) == 1 ||
 		     sscanf (prop->value, "0x%x", &int_value) == 1))
 		{
@@ -2938,6 +3100,7 @@ main (int argc, char **argv)
 		XRRChangeOutputProperty (dpy, output->output.xid,
 					 name, type, format, PropModeReplace,
 					 data, nelements);
+		free (malloced_data);
 	    }
 	}
 	if (!setit_1_2)
@@ -3210,7 +3373,10 @@ main (int argc, char **argv)
 		    unsigned long nitems, bytes_after;
 		    Atom actual_type;
 		    XRRPropertyInfo *propinfo;
-    
+		    char *atom_name = XGetAtomName (dpy, props[j]);
+		    Bool is_edid = strcmp (atom_name, "EDID") == 0;
+		    int k, bytes_per_item;
+
 		    XRRGetOutputProperty (dpy, output->output.xid, props[j],
 					  0, 100, False, False,
 					  AnyPropertyType,
@@ -3220,72 +3386,59 @@ main (int argc, char **argv)
 		    propinfo = XRRQueryOutputProperty(dpy, output->output.xid,
 						      props[j]);
 
-		    if (actual_type == XA_INTEGER && actual_format == 8) {
-			int k;
-    
-			printf("\t%s:\n", XGetAtomName (dpy, props[j]));
-			for (k = 0; k < nitems; k++) {
-			    if (k % 16 == 0)
-				printf ("\t\t");
-			    printf("%02x", (unsigned char)prop[k]);
-			    if (k % 16 == 15)
-				printf("\n");
-			}
-		    } else if (actual_type == XA_INTEGER &&
-			       actual_format == 32)
+		    bytes_per_item = actual_format / 8;
+
+		    printf ("\t%s: ", atom_name);
+
+		    if (is_edid)
 		    {
-			int k;
-			printf("\t%s: ", XGetAtomName (dpy, props[j]));
-			for (k = 0; k < nitems; k++) {
-			    if (k > 0)
-				printf ("\n\t\t\t");
-			    printf("%d (0x%08x)",
-				   (int)((INT32 *)prop)[k], (int)((INT32 *)prop)[k]);
-			}
+			printf ("\n\t\t");
+		    }
 
- 			if (propinfo->range && propinfo->num_values > 0) {
-			    if (nitems > 1)
-				printf ("\n\t\t");
-			    printf("\trange%s: ",
-				   (propinfo->num_values == 2) ? "" : "s");
-
-			    for (k = 0; k < propinfo->num_values / 2; k++)
-				printf(" (%d,%d)", (int)propinfo->values[k * 2],
-				       (int)propinfo->values[k * 2 + 1]);
-			}
-
-			printf("\n");
-		    } else if (actual_type == XA_ATOM &&
-			       actual_format == 32)
+		    for (k = 0; k < nitems; k++)
 		    {
-			int k;
-			printf("\t%s:", XGetAtomName (dpy, props[j]));
-			for (k = 0; k < nitems; k++) {
-			    if (k > 0 && (k & 1) == 0)
-				printf ("\n\t\t");
-			    printf("\t%s", XGetAtomName (dpy, ((Atom *)prop)[k]));
-			}
-
- 			if (!propinfo->range && propinfo->num_values > 0) {
-			    printf("\n\t\tsupported:");
-
-			    for (k = 0; k < propinfo->num_values; k++)
+			if (k != 0)
+			{
+			    if ((k % 16) == 0)
 			    {
-				printf(" %-12.12s", XGetAtomName (dpy,
-							    propinfo->values[k]));
-				if (k % 4 == 3 && k < propinfo->num_values - 1)
-				    printf ("\n\t\t          ");
+				printf ("\n\t\t");
 			    }
 			}
-			printf("\n");
-		    } else if (actual_format == 8) {
-			printf ("\t%s: %s%s\n", XGetAtomName (dpy, props[j]),
-				prop, bytes_after ? "..." : "");
-		    } else {
-			const char *type = actual_type ? XGetAtomName (dpy, actual_type) : "none";
-			printf ("\t%s: %s(%d) (format %d items %d) ????\n",
-				XGetAtomName (dpy, props[j]),
-				type, (int)actual_type, actual_format, (int)nitems);
+			print_output_property_value (is_edid, actual_format,
+						     actual_type,
+						     prop + (k * bytes_per_item));
+			if (!is_edid)
+			{
+			    printf (" ");
+			}
+		    }
+		    printf ("\n");
+
+		    if (propinfo->range && propinfo->num_values > 0)
+		    {
+			printf ("\t\trange%s: ",
+			        (propinfo->num_values == 2) ? "" : "s");
+			for (k = 0; k < propinfo->num_values / 2; k++)
+			{
+			    printf ("(");
+			    print_output_property_value (False, 32, actual_type,
+							 (unsigned char *) &(propinfo->values[k * 2]));
+			    printf (", ");
+			    print_output_property_value (False, 32, actual_type,
+							 (unsigned char *) &(propinfo->values[k * 2 + 1]));
+			    printf (")");
+			}
+			printf ("\n");
+		    }
+		    if (!propinfo->range && propinfo->num_values > 0)
+		    {
+			printf ("\t\tsupported: ");
+			for (k = 0; k < propinfo->num_values; k++)
+			{
+			    print_output_property_value (False, 32, actual_type,
+							 (unsigned char *) &(propinfo->values[k]));
+			}
+			printf ("\n");
 		    }
 
 		    free(propinfo);

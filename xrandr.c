@@ -394,510 +394,500 @@ static Bool          has_1_3 = False;
 static int           provider_xid, output_source_provider_xid, offload_sink_provider_xid;
 
 static int
-mode_height (XRRModeInfo *mode_info, Rotation rotation)
-{
-    switch (rotation & 0xf) {
+mode_height (XRRModeInfo *mode_info, Rotation rotation) {
+  switch (rotation & 0xf) {
+  
     case RR_Rotate_0:
     case RR_Rotate_180:
-  return mode_info->height;
+      return mode_info->height;
+  
     case RR_Rotate_90:
     case RR_Rotate_270:
-  return mode_info->width;
+      return mode_info->width;
+  
     default:
-  return 0;
-    }
+      return 0;
+  }
 }
 
 static int
-mode_width (XRRModeInfo *mode_info, Rotation rotation)
-{
-    switch (rotation & 0xf) {
+mode_width (XRRModeInfo *mode_info, Rotation rotation) {
+  switch (rotation & 0xf) {
+
     case RR_Rotate_0:
     case RR_Rotate_180:
-  return mode_info->width;
+      return mode_info->width;
+    
     case RR_Rotate_90:
     case RR_Rotate_270:
-  return mode_info->height;
+      return mode_info->height;
+
     default:
-  return 0;
-    }
+      return 0;
+  }
 }
 
 static Bool
-transform_point (XTransform *transform, double *xp, double *yp)
-{
-    double  vector[3];
-    double  result[3];
-    int	    i, j;
-    double  v;
+transform_point (XTransform *transform, double *xp, double *yp) {
+  double  vector[3];
+  double  result[3];
+  int     i, j;
+  double  v;
 
-    vector[0] = *xp;
-    vector[1] = *yp;
-    vector[2] = 1;
-    for (j = 0; j < 3; j++)
-    {
-  v = 0;
-  for (i = 0; i < 3; i++)
+  vector[0] = *xp;
+  vector[1] = *yp;
+  vector[2] = 1;
+  
+  for (j = 0; j < 3; j++) {
+    v = 0;
+  
+    for (i = 0; i < 3; i++)
       v += (XFixedToDouble (transform->matrix[j][i]) * vector[i]);
-  result[j] = v;
-    }
-    if (!result[2])
-  return False;
-    for (j = 0; j < 2; j++) {
-  vector[j] = result[j] / result[2];
-  if (vector[j] > 32767 || vector[j] < -32767)
-      return False;
-    }
-    *xp = vector[0];
-    *yp = vector[1];
-    return True;
-}
-
-static void
-path_bounds (XTransform *transform, point_t *points, int npoints, box_t *box)
-{
-    int	    i;
-    box_t   point;
-
-    for (i = 0; i < npoints; i++) {
-  double	x, y;
-  x = points[i].x;
-  y = points[i].y;
-  transform_point (transform, &x, &y);
-  point.x1 = floor (x);
-  point.y1 = floor (y);
-  point.x2 = ceil (x);
-  point.y2 = ceil (y);
-  if (i == 0)
-      *box = point;
-  else {
-      if (point.x1 < box->x1) box->x1 = point.x1;
-      if (point.y1 < box->y1) box->y1 = point.y1;
-      if (point.x2 > box->x2) box->x2 = point.x2;
-      if (point.y2 > box->y2) box->y2 = point.y2;
+  
+    result[j] = v;
   }
-    }
+
+  if (!result[2]) return False;
+  
+  for (j = 0; j < 2; j++) {
+    vector[j] = result[j] / result[2];
+    if (vector[j] > 32767 || vector[j] < -32767)
+      return False;
+  }
+
+  *xp = vector[0];
+  *yp = vector[1];
+  return True;
 }
 
 static void
-mode_geometry (XRRModeInfo *mode_info, Rotation rotation,
-         XTransform *transform,
-         box_t *bounds)
-{
-    point_t rect[4];
-    int	width = mode_width (mode_info, rotation);
-    int height = mode_height (mode_info, rotation);
+path_bounds (XTransform *transform, point_t *points, int npoints, box_t *box) {
+  int     i;
+  box_t   point;
 
-    rect[0].x = 0;
-    rect[0].y = 0;
-    rect[1].x = width;
-    rect[1].y = 0;
-    rect[2].x = width;
-    rect[2].y = height;
-    rect[3].x = 0;
-    rect[3].y = height;
-    path_bounds (transform, rect, 4, bounds);
+  for (i = 0; i < npoints; i++) {
+    double	x, y;
+    x = points[i].x;
+    y = points[i].y;
+    transform_point (transform, &x, &y);
+    
+    point.x1 = floor (x);
+    point.y1 = floor (y);
+    point.x2 = ceil (x);
+    point.y2 = ceil (y);
+    
+    if (i == 0) *box = point;
+    else {
+        if (point.x1 < box->x1) box->x1 = point.x1;
+        if (point.y1 < box->y1) box->y1 = point.y1;
+        if (point.x2 > box->x2) box->x2 = point.x2;
+        if (point.y2 > box->y2) box->y2 = point.y2;
+    } // if
+  } // i++
+}
+
+static void
+mode_geometry (
+  XRRModeInfo *mode_info, 
+  Rotation     rotation,
+  XTransform  *transform,
+  box_t       *bounds
+) { 
+
+  point_t rect[4];
+  int	width = mode_width (mode_info, rotation);
+  int height = mode_height (mode_info, rotation);
+
+  rect[0].x = 0;
+  rect[0].y = 0;
+  rect[1].x = width;
+  rect[1].y = 0;
+  rect[2].x = width;
+  rect[2].y = height;
+  rect[3].x = 0;
+  rect[3].y = height;
+
+  path_bounds (transform, rect, 4, bounds);
 }
 
 /* v refresh frequency in Hz */
 static double
-mode_refresh (XRRModeInfo *mode_info)
-{
-    double rate;
-    
-    if (mode_info->hTotal && mode_info->vTotal)
-  rate = ((double) mode_info->dotClock /
-    ((double) mode_info->hTotal * (double) mode_info->vTotal));
-    else
-      rate = 0;
-    return rate;
+mode_refresh (XRRModeInfo *mode_info) {
+  double rate;
+  
+  if (mode_info->hTotal && mode_info->vTotal)
+    rate = (
+      (double) mode_info->dotClock /
+        ((double) mode_info->hTotal * (double) mode_info->vTotal));
+  else rate = 0;
+  
+  return rate;
 }
 
 /* h sync frequency in Hz */
 static double
-mode_hsync (XRRModeInfo *mode_info)
-{
-    double rate;
-    
-    if (mode_info->hTotal)
-  rate = (double) mode_info->dotClock / (double) mode_info->hTotal;
-    else
-      rate = 0;
-    return rate;
+mode_hsync (XRRModeInfo *mode_info) {
+  double rate;
+  
+  if (mode_info->hTotal)
+    rate = (double) mode_info->dotClock / (double) mode_info->hTotal;
+  else rate = 0;
+  
+  return rate;
 }
 
 static void
-init_name (name_t *name)
-{
-    name->kind = name_none;
+init_name (name_t *name) {
+  name->kind = name_none;
 }
 
 static void
-set_name_string (name_t *name, char *string)
-{
-    name->kind |= name_string;
-    name->string = string;
+set_name_string (name_t *name, char *string) {
+  name->kind |= name_string;
+  name->string = string;
 }
 
 static void
-set_name_xid (name_t *name, XID xid)
-{
-    name->kind |= name_xid;
-    name->xid = xid;
+set_name_xid (name_t *name, XID xid) {
+  name->kind |= name_xid;
+  name->xid = xid;
 }
 
 static void
-set_name_index (name_t *name, int index)
-{
-    name->kind |= name_index;
-    name->index = index;
+set_name_index (name_t *name, int index) {
+  name->kind |= name_index;
+  name->index = index;
 }
 
 static void
-set_name_preferred (name_t *name)
-{
-    name->kind |= name_preferred;
+set_name_preferred (name_t *name) {
+  name->kind |= name_preferred;
 }
 
 static void
-set_name_all (name_t *name, name_t *old)
-{
-    if (old->kind & name_xid)
-  name->xid = old->xid;
-    if (old->kind & name_string)
-  name->string = old->string;
-    if (old->kind & name_index)
-  name->index = old->index;
-    name->kind |= old->kind;
+set_name_all (name_t *name, name_t *old) {
+  if (old->kind & name_xid) 
+    name->xid = old->xid;
+  if (old->kind & name_string) 
+    name->string = old->string;
+  if (old->kind & name_index) 
+    name->index = old->index;
+  
+  name->kind |= old->kind;
 }
 
 static void
-set_name (name_t *name, char *string, name_kind_t valid)
-{
-    unsigned int xid; /* don't make it XID (which is unsigned long):
-       scanf() takes unsigned int */
-    int index;
+set_name (name_t *name, char *string, name_kind_t valid) {
+  unsigned int xid;
+   /* don't make it XID (which is unsigned long):
+      scanf() takes unsigned int */
+  int index;
 
-    if ((valid & name_xid) && sscanf (string, "0x%x", &xid) == 1)
-  set_name_xid (name, xid);
-    else if ((valid & name_index) && sscanf (string, "%d", &index) == 1)
-  set_name_index (name, index);
-    else if (valid & name_string)
-  set_name_string (name, string);
-    else
-  usage ();
+  if ((valid & name_xid) && sscanf (string, "0x%x", &xid) == 1)
+    set_name_xid (name, xid);
+  
+  else if ((valid & name_index) && sscanf (string, "%d", &index) == 1)
+    set_name_index (name, index);
+  
+  else if (valid & name_string)
+    set_name_string (name, string);
+  
+  else usage ();
 }
 
 static void
-init_transform (transform_t *transform)
-{
-    int x;
-    memset (&transform->transform, '\0', sizeof (transform->transform));
-    for (x = 0; x < 3; x++)
-  transform->transform.matrix[x][x] = XDoubleToFixed (1.0);
-    transform->filter = "";
-    transform->nparams = 0;
-    transform->params = NULL;
+init_transform (transform_t *transform) {
+  int x;
+  memset (&transform->transform, '\0', sizeof (transform->transform));
+  
+  for (x = 0; x < 3; x++)
+    transform->transform.matrix[x][x] = XDoubleToFixed (1.0);
+  
+  transform->filter = "";
+  transform->nparams = 0;
+  transform->params = NULL;
 }
 
 static void
-set_transform (transform_t  *dest,
-         XTransform   *transform,
-         const char   *filter,
-         XFixed	    *params,
-         int	    nparams)
-{
-    dest->transform = *transform;
-    /* note: this string is leaked */
-    dest->filter = strdup (filter);
-    dest->nparams = nparams;
-    dest->params = malloc (nparams * sizeof (XFixed));
-    memcpy (dest->params, params, nparams * sizeof (XFixed));
+set_transform (
+  transform_t  *dest,
+  XTransform   *transform,
+  const char   *filter,
+  XFixed       *params,
+  int           nparams
+) {
+
+  dest->transform = *transform;
+  /* note: this string is leaked */
+  dest->filter = strdup (filter);
+  dest->nparams = nparams;
+  dest->params = malloc (nparams * sizeof (XFixed));
+  memcpy (dest->params, params, nparams * sizeof (XFixed));
 }
 
 static void
-copy_transform (transform_t *dest, transform_t *src)
-{
-    set_transform (dest, &src->transform,
-       src->filter, src->params, src->nparams);
+copy_transform (transform_t *dest, transform_t *src) {
+  set_transform (dest, &src->transform,
+  src->filter, src->params, src->nparams);
 }
 
 static Bool
-equal_transform (transform_t *a, transform_t *b)
-{
-    if (memcmp (&a->transform, &b->transform, sizeof (XTransform)) != 0)
-  return False;
-    if (strcmp (a->filter, b->filter) != 0)
-  return False;
-    if (a->nparams != b->nparams)
-  return False;
-    if (memcmp (a->params, b->params, a->nparams * sizeof (XFixed)) != 0)
-  return False;
-    return True;
-}
-
-static output_t *
-add_output (void)
-{
-    output_t *output = calloc (1, sizeof (output_t));
-
-    if (!output)
-  fatal ("out of memory\n");
-    output->next = NULL;
-    output->found = False;
-    output->brightness = 1.0;
-    *outputs_tail = output;
-    outputs_tail = &output->next;
-    return output;
-}
-
-static output_t *
-find_output (name_t *name)
-{
-    output_t *output;
-
-    for (output = outputs; output; output = output->next)
-    {
-  name_kind_t common = name->kind & output->output.kind;
+equal_transform (transform_t *a, transform_t *b) {
+  if (memcmp (&a->transform, &b->transform, sizeof (XTransform)) != 0)
+    return False;
+  if (strcmp (a->filter, b->filter) != 0)
+    return False;
+  if (a->nparams != b->nparams)
+    return False;
+  if (memcmp (a->params, b->params, a->nparams * sizeof (XFixed)) != 0)
+    return False;
   
-  if ((common & name_xid) && name->xid == output->output.xid)
-      break;
-  if ((common & name_string) && !strcmp (name->string, output->output.string))
-      break;
-  if ((common & name_index) && name->index == output->output.index)
-      break;
-    }
-    return output;
+  return True;
 }
 
 static output_t *
-find_output_by_xid (RROutput output)
-{
-    name_t  output_name;
-
-    init_name (&output_name);
-    set_name_xid (&output_name, output);
-    return find_output (&output_name);
+add_output (void) {
+  output_t *output = calloc (1, sizeof (output_t));
+  if (!output) fatal ("out of memory\n");
+  
+  output->next = NULL;
+  output->found = False;
+  output->brightness = 1.0;
+  *outputs_tail = output;
+  outputs_tail = &output->next;
+  return output;
 }
 
 static output_t *
-find_output_by_name (char *name)
-{
-    name_t  output_name;
+find_output (name_t *name) {
+  output_t *output;
 
-    init_name (&output_name);
-    set_name_string (&output_name, name);
-    return find_output (&output_name);
+  for (output = outputs; output; output = output->next) {
+    name_kind_t common = name->kind & output->output.kind;
+  
+    if ((common & name_xid) && name->xid == output->output.xid)
+      break;
+    if ((common & name_string) && !strcmp (name->string, output->output.string))
+      break;
+    if ((common & name_index) && name->index == output->output.index)
+      break;
+
+  } // output->next
+  return output;
+}
+
+static output_t *
+find_output_by_xid (RROutput output) {
+  name_t  output_name;
+
+  init_name (&output_name);
+  set_name_xid (&output_name, output);
+  return find_output (&output_name);
+}
+
+static output_t *
+find_output_by_name (char *name) {
+  name_t  output_name;
+
+  init_name (&output_name);
+  set_name_string (&output_name, name);
+  return find_output (&output_name);
 }
 
 static crtc_t *
-find_crtc (name_t *name)
-{
-    int	    c;
-    crtc_t  *crtc = NULL;
+find_crtc (name_t *name) {
+  int	    c;
+  crtc_t  *crtc = NULL;
 
-    for (c = 0; c < num_crtcs; c++)
-    {
-  name_kind_t common;
-  
-  crtc = &crtcs[c];
-  common = name->kind & crtc->crtc.kind;
-  
-  if ((common & name_xid) && name->xid == crtc->crtc.xid)
-      break;
-  if ((common & name_string) && !strcmp (name->string, crtc->crtc.string))
-      break;
-  if ((common & name_index) && name->index == crtc->crtc.index)
-      break;
-  crtc = NULL;
-    }
-    return crtc;
+  for (c = 0; c < num_crtcs; c++) {
+    name_kind_t common;
+    
+    crtc = &crtcs[c];
+    common = name->kind & crtc->crtc.kind;
+    
+    if ((common & name_xid) && name->xid == crtc->crtc.xid)
+        break;
+    if ((common & name_string) && !strcmp (name->string, crtc->crtc.string))
+        break;
+    if ((common & name_index) && name->index == crtc->crtc.index)
+        break;
+    crtc = NULL;
+
+  } // c++
+  return crtc;
 }
 
 static crtc_t *
-find_crtc_by_xid (RRCrtc crtc)
-{
-    name_t  crtc_name;
+find_crtc_by_xid (RRCrtc crtc) {
+  name_t  crtc_name;
 
-    init_name (&crtc_name);
-    set_name_xid (&crtc_name, crtc);
-    return find_crtc (&crtc_name);
+  init_name (&crtc_name);
+  set_name_xid (&crtc_name, crtc);
+  return find_crtc (&crtc_name);
 }
 
 static XRRModeInfo *
-find_mode (name_t *name, double refresh)
-{
-    int		m;
-    XRRModeInfo	*best = NULL;
-    double	bestDist = 0;
+find_mode (name_t *name, double refresh) {
+  int		m;
+  XRRModeInfo	*best = NULL;
+  double	bestDist = 0;
 
-    for (m = 0; m < res->nmode; m++)
-    {
-  XRRModeInfo *mode = &res->modes[m];
-  if ((name->kind & name_xid) && name->xid == mode->id)
-  {
+  for (m = 0; m < res->nmode; m++) {
+    XRRModeInfo *mode = &res->modes[m];
+    if ((name->kind & name_xid) && name->xid == mode->id) {
       best = mode;
       break;
-  }
-  if ((name->kind & name_string) && !strcmp (name->string, mode->name))
-  {
-      double   dist;
-      
-      if (refresh)
-    dist = fabs (mode_refresh (mode) - refresh);
-      else
-    dist = 0;
-      if (!best || dist < bestDist)
-      {
-    bestDist = dist;
-    best = mode;
-      }
-  }
     }
-    return best;
+
+    if ((name->kind & name_string) && !strcmp (name->string, mode->name)) {
+      double  dist;
+        
+      if (refresh) dist = fabs (mode_refresh (mode) - refresh);
+      else dist = 0;
+      
+      if (!best || dist < bestDist) {
+        bestDist = dist;
+        best = mode;
+      }
+    }
+
+  } // m++
+  return best;
 }
 
 static XRRModeInfo *
-find_mode_by_xid (RRMode mode)
-{
-    name_t  mode_name;
+find_mode_by_xid (RRMode mode) {
+  name_t  mode_name;
 
-    init_name (&mode_name);
-    set_name_xid (&mode_name, mode);
-    return find_mode (&mode_name, 0);
+  init_name (&mode_name);
+  set_name_xid (&mode_name, mode);
+  return find_mode (&mode_name, 0);
 }
 
 #if 0
 static XRRModeInfo *
-find_mode_by_name (char *name)
-{
-    name_t  mode_name;
-    init_name (&mode_name);
-    set_name_string (&mode_name, name);
-    return find_mode (&mode_name, 0);
+find_mode_by_name (char *name) {
+  name_t  mode_name;
+  init_name (&mode_name);
+  set_name_string (&mode_name, name);
+  return find_mode (&mode_name, 0);
 }
 #endif
 
 static
 XRRModeInfo *
-find_mode_for_output (output_t *output, name_t *name)
-{
-    XRROutputInfo   *output_info = output->output_info;
-    int		    m;
-    XRRModeInfo	    *best = NULL;
-    double	    bestDist = 0;
+find_mode_for_output (output_t *output, name_t *name) {
+  XRROutputInfo   *output_info = output->output_info;
+  int              m;
+  XRRModeInfo	    *best = NULL;
+  double           bestDist = 0;
 
-    for (m = 0; m < output_info->nmode; m++)
-    {
-  XRRModeInfo	    *mode;
+  for (m = 0; m < output_info->nmode; m++) {
+    XRRModeInfo   *mode;
 
-  mode = find_mode_by_xid (output_info->modes[m]);
-  if (!mode) continue;
-  if ((name->kind & name_xid) && name->xid == mode->id)
-  {
+    mode = find_mode_by_xid (output_info->modes[m]);
+    if (!mode) continue;
+  
+    if ((name->kind & name_xid) && name->xid == mode->id) {
       best = mode;
       break;
-  }
-  if ((name->kind & name_string) && !strcmp (name->string, mode->name))
-  {
+    }
+
+    if ((name->kind & name_string) && !strcmp (name->string, mode->name)) {
       double   dist;
 
       /* Stay away from doublescan modes unless refresh rate is specified. */
-      if (!output->refresh && (mode->modeFlags & RR_DoubleScan))
-    continue;
+      if (!output->refresh && (mode->modeFlags & RR_DoubleScan)) continue;
 
       if (output->refresh)
-    dist = fabs (mode_refresh (mode) - output->refresh);
-      else
-    dist = 0;
-      if (!best || dist < bestDist)
-      {
-    bestDist = dist;
-    best = mode;
+        dist = fabs (mode_refresh (mode) - output->refresh);
+      else dist = 0;
+      
+      if (!best || dist < bestDist) {
+        bestDist = dist;
+        best = mode;
       }
-  }
-    }
-    return best;
+    
+    } // if
+  } // m++
+  return best;
 }
 
 static XRRModeInfo *
-preferred_mode (output_t *output)
-{
-    XRROutputInfo   *output_info = output->output_info;
-    int		    m;
-    XRRModeInfo	    *best;
-    int		    bestDist;
+preferred_mode (output_t *output) {
+  XRROutputInfo   *output_info = output->output_info;
+  int              m;
+  XRRModeInfo     *best;
+  int              bestDist;
+
+  best = NULL;
+  bestDist = 0;
+
+  for (m = 0; m < output_info->nmode; m++) {
+    XRRModeInfo *mode_info = find_mode_by_xid (output_info->modes[m]);
+    int dist;
     
-    best = NULL;
-    bestDist = 0;
-    for (m = 0; m < output_info->nmode; m++)
-    {
-  XRRModeInfo *mode_info = find_mode_by_xid (output_info->modes[m]);
-  int	    dist;
-  
-  if (m < output_info->npreferred)
-      dist = 0;
-  else if (output_info->mm_height)
+    if (m < output_info->npreferred) dist = 0;
+    else if (output_info->mm_height)
       dist = (1000 * DisplayHeight(dpy, screen) / DisplayHeightMM(dpy, screen) -
         1000 * mode_info->height / output_info->mm_height);
-  else
-      dist = DisplayHeight(dpy, screen) - mode_info->height;
+    else dist = DisplayHeight(dpy, screen) - mode_info->height;
 
-        if (dist < 0) dist = -dist;
-  if (!best || dist < bestDist)
-  {
-      best = mode_info;
-      bestDist = dist;
-  }
+    if (dist < 0) dist = -dist;
+  
+    if (!best || dist < bestDist) {
+        best = mode_info;
+        bestDist = dist;
     }
-    return best;
+
+  } // m++
+  return best;
 }
 
 static Bool
-output_can_use_crtc (output_t *output, crtc_t *crtc)
-{
-    XRROutputInfo   *output_info = output->output_info;
-    int		    c;
+output_can_use_crtc (output_t *output, crtc_t *crtc) {
+  XRROutputInfo   *output_info = output->output_info;
+  int              c;
 
-    for (c = 0; c < output_info->ncrtc; c++)
-  if (output_info->crtcs[c] == crtc->crtc.xid)
+  for (c = 0; c < output_info->ncrtc; c++)
+    if (output_info->crtcs[c] == crtc->crtc.xid)
       return True;
-    return False;
+  
+  return False;
 }
 
 static Bool
-output_can_use_mode (output_t *output, XRRModeInfo *mode)
-{
-    XRROutputInfo   *output_info = output->output_info;
-    int		    m;
+output_can_use_mode (output_t *output, XRRModeInfo *mode) {
+  XRROutputInfo   *output_info = output->output_info;
+  int              m;
 
-    for (m = 0; m < output_info->nmode; m++)
-  if (output_info->modes[m] == mode->id)
+  for (m = 0; m < output_info->nmode; m++)
+    if (output_info->modes[m] == mode->id)
       return True;
-    return False;
+  
+  return False;
 }
 
 static Bool
-crtc_can_use_rotation (crtc_t *crtc, Rotation rotation)
-{
-    Rotation	rotations = crtc->crtc_info->rotations;
-    Rotation	dir = rotation & (RR_Rotate_0|RR_Rotate_90|RR_Rotate_180|RR_Rotate_270);
-    Rotation	reflect = rotation & (RR_Reflect_X|RR_Reflect_Y);
-    if (((rotations & dir) != 0) && ((rotations & reflect) == reflect))
-  return True;
-    return False;
+crtc_can_use_rotation (crtc_t *crtc, Rotation rotation) {
+  Rotation rotations = crtc->crtc_info->rotations;
+  Rotation dir = rotation & (RR_Rotate_0|RR_Rotate_90|RR_Rotate_180|RR_Rotate_270);
+  Rotation reflect = rotation & (RR_Reflect_X|RR_Reflect_Y);
+  
+  if (((rotations & dir) != 0) && ((rotations & reflect) == reflect)) return True;
+  
+  return False;
 }
 
 #if 0
 static Bool
-crtc_can_use_transform (crtc_t *crtc, XTransform *transform)
-{
-    int	major, minor;
+crtc_can_use_transform (crtc_t *crtc, XTransform *transform) {
+  int major, minor;
 
-    XRRQueryVersion (dpy, &major, &minor);
-    if (major > 1 || (major == 1 && minor >= 3))
-  return True;
-    return False;
+  XRRQueryVersion (dpy, &major, &minor);
+  if (major > 1 || (major == 1 && minor >= 3)) return True;
+  
+  return False;
 }
 #endif
 

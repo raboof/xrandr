@@ -1020,11 +1020,11 @@ set_gamma_info(output_t *output) {
     else output->brightness = exp((log(v2)*log(i1) - log(v1)*log(i2))/log(i1/i2));
     
     output->gamma.red = log((double)(gamma->red[last_red / 2]) / output->brightness
-          / 65535) / log((double)((last_red / 2) + 1) / size);
+      / 65535) / log((double)((last_red / 2) + 1) / size);
     output->gamma.green = log((double)(gamma->green[last_green / 2]) / output->brightness
-            / 65535) / log((double)((last_green / 2) + 1) / size);
+      / 65535) / log((double)((last_green / 2) + 1) / size);
     output->gamma.blue = log((double)(gamma->blue[last_blue / 2]) / output->brightness
-          / 65535) / log((double)((last_blue / 2) + 1) / size);
+      / 65535) / log((double)((last_blue / 2) + 1) / size);
   } // else
 
   XRRFreeGamma(gamma);

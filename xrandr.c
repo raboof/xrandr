@@ -2398,7 +2398,7 @@ main (int argc, char **argv)
     program_name = argv[0];
 
     for (i = 1; i < argc; i++) {
-		
+
 		if (!strcmp ("-display", argv[i]) || !strcmp ("-d", argv[i])) {
 			if (++i>=argc) usage ();
 			display_name = argv[i];
@@ -2959,278 +2959,277 @@ main (int argc, char **argv)
 		usage();
     } // end of the for loop parsing the CLI
 
-    if (!action_requested)
-	    query = True;
-    if (verbose) 
-    {
-	query = True;
-	if (setit && !setit_1_2)
-	    query_1 = True;
+    if (!action_requested) query = True;
+    
+	if (verbose) {
+		query = True;
+		if (setit && !setit_1_2) query_1 = True;
     }
-    if (version)
-	printf("xrandr program version       " VERSION "\n");
+
+    if (version) printf("xrandr program version       " VERSION "\n");
 
     dpy = XOpenDisplay (display_name);
-
     if (dpy == NULL) {
-	fprintf (stderr, "Can't open display %s\n", XDisplayName(display_name));
-	exit (1);
+		fprintf (stderr, "Can't open display %s\n", XDisplayName(display_name));
+		exit (1);
     }
-    if (screen < 0)
-	screen = DefaultScreen (dpy);
+
+    if (screen < 0)	screen = DefaultScreen (dpy);
     if (screen >= ScreenCount (dpy)) {
-	fprintf (stderr, "Invalid screen number %d (display has %d)\n",
-		 screen, ScreenCount (dpy));
-	exit (1);
+		fprintf (stderr, "Invalid screen number %d (display has %d)\n",
+		screen, ScreenCount (dpy));
+		exit (1);
     }
 
     root = RootWindow (dpy, screen);
 
     if (!XRRQueryExtension (dpy, &event_base, &error_base) ||
-        !XRRQueryVersion (dpy, &major, &minor))
-    {
-	fprintf (stderr, "RandR extension missing\n");
-	exit (1);
+        !XRRQueryVersion (dpy, &major, &minor)) {
+
+		fprintf (stderr, "RandR extension missing\n");
+		exit (1);
     }
-    if (major > 1 || (major == 1 && minor >= 2))
-	has_1_2 = True;
-    if (major > 1 || (major == 1 && minor >= 3))
-	has_1_3 = True;
+
+    if (major > 1 || (major == 1 && minor >= 2)) has_1_2 = True;
+    if (major > 1 || (major == 1 && minor >= 3)) has_1_3 = True;
 	
-    if (has_1_2 && modeit)
-    {
-	umode_t	*m;
+    if (has_1_2 && modeit) {
+		umode_t	*m;
 
         get_screen (current);
-	get_crtcs();
-	get_outputs();
-	
-	for (m = umodes; m; m = m->next)
-	{
-	    XRRModeInfo *e;
-	    output_t	*o;
-	    
-	    switch (m->action) {
-	    case umode_create:
-		XRRCreateMode (dpy, root, &m->mode);
-		break;
-	    case umode_destroy:
-		e = find_mode (&m->name, 0);
-		if (!e)
-		    fatal ("cannot find mode \"%s\"\n", m->name.string);
-		XRRDestroyMode (dpy, e->id);
-		break;
-	    case umode_add:
-		o = find_output (&m->output);
-		if (!o)
-		    fatal ("cannot find output \"%s\"\n", m->output.string);
-		e = find_mode (&m->name, 0);
-		if (!e)
-		    fatal ("cannot find mode \"%s\"\n", m->name.string);
-		XRRAddOutputMode (dpy, o->output.xid, e->id);
-		break;
-	    case umode_delete:
-		o = find_output (&m->output);
-		if (!o)
-		    fatal ("cannot find output \"%s\"\n", m->output.string);
-		e = find_mode (&m->name, 0);
-		if (!e)
-		    fatal ("cannot find mode \"%s\"\n", m->name.string);
-		XRRDeleteOutputMode (dpy, o->output.xid, e->id);
-		break;
-	    }
-	}
-	if (!setit_1_2)
-	{
-	    XSync (dpy, False);
-	    exit (0);
-	}
-    }
-    if (has_1_2 && propit)
-    {
-	
-        get_screen (current);
-	get_crtcs();
-	get_outputs();
-	
-	for (output = outputs; output; output = output->next)
-	{
-	    output_prop_t   *prop;
-
-	    for (prop = output->props; prop; prop = prop->next)
-	    {
-		Atom		name = XInternAtom (dpy, prop->name, False);
-		Atom		type;
-		int		format = 0;
-		unsigned char	*data, *malloced_data = NULL;
-		int		nelements;
-		int		int_value;
-		unsigned long	ulong_value;
-		unsigned char	*prop_data;
-		int		actual_format;
-		unsigned long	nitems, bytes_after;
-		Atom		actual_type;
-		XRRPropertyInfo *propinfo;
-
-		type = AnyPropertyType;
+		get_crtcs();
+		get_outputs();
 		
-		if (XRRGetOutputProperty (dpy, output->output.xid, name,
-					  0, 100, False, False,
-					  AnyPropertyType,
-					  &actual_type, &actual_format,
-					  &nitems, &bytes_after, &prop_data) == Success &&
+		for (m = umodes; m; m = m->next) {
+			XRRModeInfo *e;
+			output_t	*o;
+			
+			switch (m->action) {
+				
+				case umode_create:
+					XRRCreateMode (dpy, root, &m->mode);
+					break;
 
-		    (propinfo = XRRQueryOutputProperty(dpy, output->output.xid,
-						      name)))
-		{
-		    type = actual_type;
-		    format = actual_format;
-		}
+				case umode_destroy:
+					e = find_mode (&m->name, 0);
+					if (!e)	fatal ("cannot find mode \"%s\"\n", m->name.string);
 
-		malloced_data = property_values_from_string
-		    (prop->value, type, actual_format, &nelements);
+					XRRDestroyMode (dpy, e->id);
+					break;
 
-		if (malloced_data)
-		{
-		    data = malloced_data;
-		    type = actual_type;
-		    format = actual_format;
+				case umode_add:
+					o = find_output (&m->output);
+					if (!o)	fatal ("cannot find output \"%s\"\n", m->output.string);
+
+					e = find_mode (&m->name, 0);
+					if (!e)	fatal ("cannot find mode \"%s\"\n", m->name.string);
+
+					XRRAddOutputMode (dpy, o->output.xid, e->id);
+					break;
+
+				case umode_delete:
+					o = find_output (&m->output);
+					if (!o)	fatal ("cannot find output \"%s\"\n", m->output.string);
+
+					e = find_mode (&m->name, 0);
+					if (!e)	fatal ("cannot find mode \"%s\"\n", m->name.string);
+
+					XRRDeleteOutputMode (dpy, o->output.xid, e->id);
+					break;
+			}
 		}
-		else if (type == AnyPropertyType &&
-		    (sscanf (prop->value, "%d", &int_value) == 1 ||
-		     sscanf (prop->value, "0x%x", &int_value) == 1))
-		{
-		    type = XA_INTEGER;
-		    ulong_value = int_value;
-		    data = (unsigned char *) &ulong_value;
-		    nelements = 1;
-		    format = 32;
+		
+		if (!setit_1_2)	{
+			XSync (dpy, False);
+			exit (0);
 		}
-		else if ((type == XA_ATOM))
-		{
-		    ulong_value = XInternAtom (dpy, prop->value, False);
-		    data = (unsigned char *) &ulong_value;
-		    nelements = 1;
+    } // has_1_2 && modeit
+
+    if (has_1_2 && propit) {
+	
+        get_screen (current);
+		get_crtcs();
+		get_outputs();
+	
+		for (output = outputs; output; output = output->next) {
+			output_prop_t   *prop;
+
+			for (prop = output->props; prop; prop = prop->next) {
+				Atom			 name = XInternAtom (dpy, prop->name, False);
+				Atom			 type;
+				int				 format = 0;
+				unsigned char	*data, *malloced_data = NULL;
+				int				 nelements;
+				int				 int_value;
+				unsigned long	 ulong_value;
+				unsigned char	*prop_data;
+				int				 actual_format;
+				unsigned long	 nitems, bytes_after;
+				Atom			 actual_type;
+				XRRPropertyInfo *propinfo;
+
+				type = AnyPropertyType;
+				
+				if ( XRRGetOutputProperty (
+						dpy, output->output.xid, name,
+						0, 100, False, False,
+						AnyPropertyType,
+						&actual_type, &actual_format,
+						&nitems, &bytes_after, &prop_data
+					) == Success &&	(
+						propinfo = XRRQueryOutputProperty(
+							dpy, output->output.xid, name
+						) // XRRQueryOutputProperty
+					) // &&
+				) {
+					type = actual_type;
+					format = actual_format;
+				}
+
+				malloced_data = property_values_from_string(
+					prop->value, type, actual_format, &nelements);
+
+				if (malloced_data) {
+					data = malloced_data;
+					type = actual_type;
+					format = actual_format;
+
+				} else if (type == AnyPropertyType && (
+						sscanf (prop->value, "%d", &int_value) == 1 ||
+						sscanf (prop->value, "0x%x", &int_value) == 1
+					) // && 
+				) {
+					type = XA_INTEGER;
+					ulong_value = int_value;
+					data = (unsigned char *) &ulong_value;
+					nelements = 1;
+					format = 32;
+
+				} else if ((type == XA_ATOM)) {
+					ulong_value = XInternAtom (dpy, prop->value, False);
+					data = (unsigned char *) &ulong_value;
+					nelements = 1;
+
+				} else if ((type == XA_STRING || type == AnyPropertyType)) {
+					type = XA_STRING;
+					data = (unsigned char *) prop->value;
+					nelements = strlen (prop->value);
+					format = 8;
+
+				} else continue;
+				
+				XRRChangeOutputProperty (
+					dpy, output->output.xid,
+					name, type, format, PropModeReplace,
+					data, nelements);
+
+				free (malloced_data);
+				
+			} // for output->props
+		} // for outputs
+
+		if (!setit_1_2)	{
+			XSync (dpy, False);
+			exit (0);
 		}
-		else if ((type == XA_STRING || type == AnyPropertyType))
-		{
-		    type = XA_STRING;
-		    data = (unsigned char *) prop->value;
-		    nelements = strlen (prop->value);
-		    format = 8;
-		}
-		else
-		    continue;
-		XRRChangeOutputProperty (dpy, output->output.xid,
-					 name, type, format, PropModeReplace,
-					 data, nelements);
-		free (malloced_data);
-	    }
-	}
-	if (!setit_1_2)
-	{
-	    XSync (dpy, False);
-	    exit (0);
-	}
-    }
-    if (has_1_2 && provsetoutsource)
-    {
+    } // has_1_2 && propit
+
+    if (has_1_2 && provsetoutsource) {
       XRRSetProviderOutputSource(dpy, provider_xid, output_source_provider_xid);
     }
-    if (has_1_2 && provsetoffsink)
-    {
+
+    if (has_1_2 && provsetoffsink) {
       XRRSetProviderOffloadSink(dpy, provider_xid, offload_sink_provider_xid);
     }
-    if (setit_1_2)
-    {
-	get_screen (current);
-	get_crtcs ();
-	get_outputs ();
-	set_positions ();
-	set_screen_size ();
 
-	pick_crtcs ();
+    if (setit_1_2) {
+		get_screen (current);
+		get_crtcs ();
+		get_outputs ();
+		set_positions ();
+		set_screen_size ();
 
-	/*
-	 * Assign outputs to crtcs
-	 */
-	set_crtcs ();
-	
-	/*
-	 * Mark changing crtcs
-	 */
-	mark_changing_crtcs ();
+		pick_crtcs ();
 
-	/*
-	 * If an output was specified to track dpi, use it
-	 */
-	if (dpi_output)
-	{
-	    output_t	*output = find_output_by_name (dpi_output);
-	    XRROutputInfo	*output_info;
-	    XRRModeInfo	*mode_info;
-	    if (!output)
-		fatal ("Cannot find output %s\n", dpi_output);
-	    output_info = output->output_info;
-	    mode_info = output->mode_info;
-	    if (output_info && mode_info && output_info->mm_height)
-	    {
 		/*
-		 * When this output covers the whole screen, just use
-		 * the known physical size
-		 */
-		if (fb_width == mode_info->width &&
-		    fb_height == mode_info->height)
-		{
-		    fb_width_mm = output_info->mm_width;
-		    fb_height_mm = output_info->mm_height;
-		}
-		else
-		{
-		    dpi = (25.4 * mode_info->height) / output_info->mm_height;
-		}
-	    }
-	}
+		* Assign outputs to crtcs
+		*/
+		set_crtcs ();
+		
+		/*
+		* Mark changing crtcs
+		*/
+		mark_changing_crtcs ();
 
-	/*
-	 * Compute physical screen size
-	 */
-	if (fb_width_mm == 0 || fb_height_mm == 0)
-	{
-	    if (fb_width != DisplayWidth (dpy, screen) ||
-		fb_height != DisplayHeight (dpy, screen) || dpi != 0.0)
-	    {
-		if (dpi <= 0)
-		    dpi = (25.4 * DisplayHeight (dpy, screen)) / DisplayHeightMM(dpy, screen);
+		/*
+		* If an output was specified to track dpi, use it
+		*/
+		if (dpi_output) {
+			output_t		*output = find_output_by_name (dpi_output);
+			XRROutputInfo	*output_info;
+			XRRModeInfo		*mode_info;
 
-		fb_width_mm = (25.4 * fb_width) / dpi;
-		fb_height_mm = (25.4 * fb_height) / dpi;
-	    }
-	    else
-	    {
-		fb_width_mm = DisplayWidthMM (dpy, screen);
-		fb_height_mm = DisplayHeightMM (dpy, screen);
-	    }
-	}
-	
-	/*
-	 * Set panning
-	 */
-	set_panning ();
+			if (!output) fatal ("Cannot find output %s\n", dpi_output);
 
-	/* 
-	 * Set gamma on crtc's that belong to the outputs.
-	 */
-	set_gamma ();
+			output_info = output->output_info;
+			mode_info = output->mode_info;
+			
+			if (output_info && mode_info && output_info->mm_height) {
+				/*
+				* When this output covers the whole screen, just use
+				* the known physical size
+				*/
+				if (fb_width == mode_info->width &&
+					fb_height == mode_info->height)	{
 
-	/*
-	 * Now apply all of the changes
-	 */
-	apply ();
-	
-	XSync (dpy, False);
-	exit (0);
-    }
+					fb_width_mm = output_info->mm_width;
+					fb_height_mm = output_info->mm_height;
+
+				} else {
+					dpi = (25.4 * mode_info->height) / output_info->mm_height;
+				}
+			}
+		} // dpi_output
+
+		/*
+		* Compute physical screen size
+		*/
+		if (fb_width_mm == 0 || fb_height_mm == 0) {
+			if (fb_width != DisplayWidth (dpy, screen) ||
+				fb_height != DisplayHeight (dpy, screen) || dpi != 0.0)	{
+				
+				if (dpi <= 0)
+					dpi = (25.4 * DisplayHeight (dpy, screen)) / DisplayHeightMM(dpy, screen);
+
+				fb_width_mm = (25.4 * fb_width) / dpi;
+				fb_height_mm = (25.4 * fb_height) / dpi;
+			
+			} else {
+				fb_width_mm = DisplayWidthMM (dpy, screen);
+				fb_height_mm = DisplayHeightMM (dpy, screen);
+			}
+		} // fb_width_mm == 0 || fb_height_mm == 0
+		
+		/*
+		* Set panning
+		*/
+		set_panning ();
+
+		/* 
+		* Set gamma on crtc's that belong to the outputs.
+		*/
+		set_gamma ();
+
+		/*
+		* Now apply all of the changes
+		*/
+		apply ();
+		
+		XSync (dpy, False);
+
+		exit (0);
+    } // setit_1_2
+
     if (query_1_2 || (query && has_1_2 && !query_1))
     {
 	output_t    *output;

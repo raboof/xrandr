@@ -1,0 +1,31 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(gdb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/xrandr",
+            "args": ["--dryrun", 
+                "--fb", "5940x3360",
+                "--output", "HDMI-1", "--mode", "3840x2160", "--scale", "1x1", 
+                "--output", "HDMI-2", "--mode", "1680x1050_60.00", "--scale", "2x2", 
+                "--rotate", "left", "--pos", "3840x0", "--panning", "2100x3360+3840+0"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        }
+    ]
+}

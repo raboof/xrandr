@@ -2028,256 +2028,236 @@ pick_crtcs_score (output_t *outputs) {
    * Now score with this output any valid crtc
    */
   for (c = 0; c < output->output_info->ncrtc; c++) {
-  crtc_t	    *crtc;
+    crtc_t  *crtc;
 
-  crtc = find_crtc_by_xid (output->output_info->crtcs[c]);
-  if (!crtc)
-      fatal ("cannot find crtc 0x%x\n", output->output_info->crtcs[c]);
-  
-  /* reset crtc allocation for following outputs */
-  disable_outputs (outputs);
-  if (!check_crtc_for_output (crtc, output))
-      continue;
-  
-  my_score = 1000;
-  /* slight preference for existing connections */
-  if (crtc == output->current_crtc_info)
-      my_score++;
+    crtc = find_crtc_by_xid (output->output_info->crtcs[c]);
+    if (!crtc) fatal (
+      "cannot find crtc 0x%x\n", output->output_info->crtcs[c]);
+    
+    /* reset crtc allocation for following outputs */
+    disable_outputs (outputs);
+    if (!check_crtc_for_output (crtc, output)) continue;
+    
+    my_score = 1000;
+    /* slight preference for existing connections */
+    if (crtc == output->current_crtc_info) my_score++;
 
-  output->crtc_info = crtc;
-  score = my_score + pick_crtcs_score (outputs);
-  if (score > best_score)
-  {
+    output->crtc_info = crtc;
+    score = my_score + pick_crtcs_score (outputs);
+    if (score > best_score) {
       best_crtc = crtc;
       best_score = score;
-  }
     }
-    if (output->crtc_info != best_crtc)
-  output->crtc_info = best_crtc;
-    /*
-     * Reset other outputs based on this one using the best crtc
-     */
-    (void) pick_crtcs_score (outputs);
+  } // c++
 
-    return best_score;
-}
+  if (output->crtc_info != best_crtc) output->crtc_info = best_crtc;
+  /*
+   * Reset other outputs based on this one using the best crtc
+   */
+  (void) pick_crtcs_score (outputs);
+
+  return best_score;
+} // pick_crtcs_score()
+
 
 /*
  * Pick crtcs for any changing outputs that don't have one
  */
 static void
-pick_crtcs (void)
-{
-    output_t	*output;
+pick_crtcs (void) {
+  output_t  *output;
 
-    /*
-     * First try to match up newly enabled outputs with spare crtcs
-     */
-    for (output = outputs; output; output = output->next)
-    {
-  if (output->changes && output->mode_info)
-  {
+  /*
+   * First try to match up newly enabled outputs with spare crtcs
+   */
+  for (output = outputs; output; output = output->next) {
+    if (output->changes && output->mode_info) {
       if (output->crtc_info) {
-    if (output->crtc_info->crtc_info->noutput > 0 &&
-        (output->crtc_info->crtc_info->noutput > 1 ||
-         output != find_output_by_xid (output->crtc_info->crtc_info->outputs[0])))
-        break;
+        if (output->crtc_info->crtc_info->noutput > 0 &&
+           (output->crtc_info->crtc_info->noutput > 1 ||
+            output != find_output_by_xid (
+            output->crtc_info->crtc_info->outputs[0]))) break;
       } else {
-    output->crtc_info = find_crtc_for_output (output);
-    if (!output->crtc_info)
-        break;
-      }
-  }
+        output->crtc_info = find_crtc_for_output (output);
+        if (!output->crtc_info) break;
+      } // [else] output->crtc_info
     }
-    /*
-     * Everyone is happy
-     */
-    if (!output)
-  return;
-    /*
-     * When the simple way fails, see if there is a way
-     * to swap crtcs around and make things work
-     */
-    for (output = outputs; output; output = output->next)
-  output->current_crtc_info = output->crtc_info;
-    pick_crtcs_score (outputs);
-    for (output = outputs; output; output = output->next)
-    {
-  if (output->mode_info && !output->crtc_info)
-      fatal ("cannot find crtc for output %s\n", output->output.string);
-  if (!output->changes && output->crtc_info != output->current_crtc_info)
-      output->changes |= changes_crtc;
-    }
-}
+  } // output->next
+  
+  /*
+   * Everyone is happy
+   */
+  if (!output) return;
+  
+  /*
+   * When the simple way fails, see if there is a way
+   * to swap crtcs around and make things work
+   */
+  for (output = outputs; output; output = output->next)
+    output->current_crtc_info = output->crtc_info;
+  
+  pick_crtcs_score (outputs);
+  for (output = outputs; output; output = output->next) {
+    if (output->mode_info && !output->crtc_info)
+        fatal ("cannot find crtc for output %s\n", output->output.string);
+    if (!output->changes && output->crtc_info != output->current_crtc_info)
+        output->changes |= changes_crtc;
+  } // output->next
+} // pick_crtcs()
+
 
 static int
-check_strtol(char *s)
-{
-    char *endptr;
-    int result = strtol(s, &endptr, 10);
-    if (s == endptr)
-  usage();
-    return result;
+check_strtol(char *s) {
+  char *endptr;
+  int result = strtol(s, &endptr, 10);
+  if (s == endptr) usage();
+  return result;
 }
 
+
 static double
-check_strtod(char *s)
-{
-    char *endptr;
-    double result = strtod(s, &endptr);
-    if (s == endptr)
-  usage();
-    return result;
+check_strtod(char *s) {
+  char *endptr;
+  double result = strtod(s, &endptr);
+  if (s == endptr) usage();
+  return result;
 }
 
 
 static void *
-property_values_from_string(const char *str, const Atom type, const int format,
-                            int *returned_nitems)
-{
-    char *token, *tmp;
-    void *returned_bytes = NULL;
-    int nitems = 0, bytes_per_item = format / 8;
+property_values_from_string(
+  const char *str, const Atom type, const int format,
+  int *returned_nitems
+) {
+  char *token, *tmp;
+  void *returned_bytes = NULL;
+  int nitems = 0, bytes_per_item = format / 8;
 
-    if ((type != XA_INTEGER && type != XA_CARDINAL) ||
-  (format != 8 && format != 16 && format != 32))
-    {
-  return NULL;
-    }
+  if ((type != XA_INTEGER && type != XA_CARDINAL) ||
+    (format != 8 && format != 16 && format != 32)) return NULL;
 
-    tmp = strdup (str);
+  tmp = strdup (str);
 
-    for (token = strtok (tmp, ","); token; token = strtok (NULL, ","))
-    {
-  char *endptr;
-  long int val = strtol (token, &endptr, 0);
+  for (token = strtok (tmp, ","); token; token = strtok (NULL, ",")) {
+    char *endptr;
+    long int val = strtol (token, &endptr, 0);
 
-  if (token == endptr || *endptr != '\0')
-  {
-      usage ();
-  }
+    if (token == endptr || *endptr != '\0') usage ();
 
-  returned_bytes = realloc (returned_bytes, (nitems + 1) * bytes_per_item);
+    returned_bytes = realloc (returned_bytes, (nitems + 1) * bytes_per_item);
 
-  if (type == XA_INTEGER && format == 8)
-  {
-      int8_t *ptr = returned_bytes;
-      ptr[nitems] = (int8_t) val;
-  }
-  else if (type == XA_INTEGER && format == 16)
-  {
-      int16_t *ptr = returned_bytes;
-      ptr[nitems] = (int16_t) val;
-  }
-  else if (type == XA_INTEGER && format == 32)
-  {
-      int32_t *ptr = returned_bytes;
-      ptr[nitems] = (int32_t) val;
-  }
-  else if (type == XA_CARDINAL && format == 8)
-  {
-      uint8_t *ptr = returned_bytes;
-      ptr[nitems] = (uint8_t) val;
-  }
-  else if (type == XA_CARDINAL && format == 16)
-  {
-      uint16_t *ptr = returned_bytes;
-      ptr[nitems] = (uint16_t) val;
-  }
-  else if (type == XA_CARDINAL && format == 32)
-  {
-      uint32_t *ptr = returned_bytes;
-      ptr[nitems] = (uint32_t) val;
-  }
-  else
-  {
-      free (tmp);
-      free (returned_bytes);
-      return NULL;
-  }
+    if (type == XA_INTEGER && format == 8) {
+        int8_t *ptr = returned_bytes;
+        ptr[nitems] = (int8_t) val;
 
-  nitems++;
-    }
+    } else if (type == XA_INTEGER && format == 16) {
+        int16_t *ptr = returned_bytes;
+        ptr[nitems] = (int16_t) val;
 
-    free (tmp);
+    } else if (type == XA_INTEGER && format == 32) {
+        int32_t *ptr = returned_bytes;
+        ptr[nitems] = (int32_t) val;
+        
+    } else if (type == XA_CARDINAL && format == 8) {
+        uint8_t *ptr = returned_bytes;
+        ptr[nitems] = (uint8_t) val;
+    
+    } else if (type == XA_CARDINAL && format == 16) {
+        uint16_t *ptr = returned_bytes;
+        ptr[nitems] = (uint16_t) val;
+    
+    } else if (type == XA_CARDINAL && format == 32) {
+        uint32_t *ptr = returned_bytes;
+        ptr[nitems] = (uint32_t) val;
+    
+    } else {
+        free (tmp);
+        free (returned_bytes);
+        return NULL;
 
-    *returned_nitems = nitems;
-    return returned_bytes;
-}
+    } // [else] type == XA_CARDINAL && format ==
+
+    nitems++;
+  } // for token
+
+  free (tmp);
+
+  *returned_nitems = nitems;
+  return returned_bytes;
+} // property_values_from_string()
 
 
 static void
-print_output_property_value(Bool is_edid,
-                            int value_format, /* 8, 16, 32 */
-                            Atom value_type,  /* XA_{ATOM,INTEGER,CARDINAL} */
-                            const void *value_bytes)
-{
-    /* special-case the EDID */
-    if (is_edid && value_format == 8)
-    {
-  const uint8_t *val = value_bytes;
-  printf ("%02" PRIx8, *val);
-  return;
-    }
+print_output_property_value(
+  Bool is_edid,
+  int value_format, /* 8, 16, 32 */
+  Atom value_type,  /* XA_{ATOM,INTEGER,CARDINAL} */
+  const void *value_bytes
+) {
 
-    if (value_type == XA_ATOM && value_format == 32)
-    {
-  const Atom *val = value_bytes;
-  char *str = XGetAtomName (dpy, *val);
-  if (str != NULL)
-  {
+  /* special-case the EDID */
+  if (is_edid && value_format == 8) {
+    const uint8_t *val = value_bytes;
+    printf ("%02" PRIx8, *val);
+    return;
+  }
+
+  if (value_type == XA_ATOM && value_format == 32) {
+    const Atom *val = value_bytes;
+    char *str = XGetAtomName (dpy, *val);
+    if (str != NULL) {
       printf ("%s", str);
       XFree (str);
       return;
-  }
     }
+  }
 
-    if (value_type == XA_INTEGER)
-    {
-  if (value_format == 8)
-  {
+  if (value_type == XA_INTEGER) {
+    
+    if (value_format == 8) {
       const int8_t *val = value_bytes;
       printf ("%" PRId8, *val);
       return;
-  }
-  if (value_format == 16)
-  {
+    }
+    
+    if (value_format == 16) {
       const int16_t *val = value_bytes;
       printf ("%" PRId16, *val);
       return;
-  }
-  if (value_format == 32)
-  {
+    }
+
+    if (value_format == 32) {
       const int32_t *val = value_bytes;
       printf ("%" PRId32, *val);
       return;
-  }
     }
 
-    if (value_type == XA_CARDINAL)
-    {
-  if (value_format == 8)
-  {
+  } // value_type == XA_INTEGER
+
+  if (value_type == XA_CARDINAL) {
+    
+    if (value_format == 8) {
       const uint8_t *val = value_bytes;
       printf ("%" PRIu8, *val);
       return;
-  }
-  if (value_format == 16)
-  {
+    }
+
+    if (value_format == 16) {
       const uint16_t *val = value_bytes;
       printf ("%" PRIu16, *val);
       return;
-  }
-  if (value_format == 32)
-  {
+    }
+
+    if (value_format == 32) {
       const uint32_t *val = value_bytes;
       printf ("%" PRIu32, *val);
       return;
-  }
     }
 
-    printf ("?");
-}
+  } // value_type == XA_CARDINAL
+
+  printf ("?");
+} // print_output_property_value ()
 
 
 

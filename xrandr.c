@@ -3337,13 +3337,15 @@ main (int argc, char **argv) {
 
         for (i = 0; i < 4; i ++) {
           if ((rotations >> i) & 1) {
-            if (!first) printf (" "); first = False;
+            if (!first) printf (" "); 
+            first = False;
             printf("%s", direction[i]); 
           }
         }
 
         if (rotations & RR_Reflect_X) {
-            if (!first) printf (" "); first = False;
+            if (!first) printf (" "); 
+            first = False;
             printf ("x axis");
         }
 

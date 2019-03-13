@@ -3620,212 +3620,222 @@ main (int argc, char **argv)
 
 
     if (providers) {
-  XRRProviderResources *providers;
-  int j, k;
-  get_screen (current);
-  providers = XRRGetProviderResources(dpy, root);
-  if (providers) {
-      printf("Providers: number : %d\n", providers->nproviders);
+      XRRProviderResources *providers;
+      int j, k;
+      get_screen (current);
+      providers = XRRGetProviderResources(dpy, root);
+      
+      if (providers) {
+        printf("Providers: number : %d\n", providers->nproviders);
 
-      for (j = 0; j < providers->nproviders; j++) {
+        for (j = 0; j < providers->nproviders; j++) {
           XRRProviderInfo *info = XRRGetProviderInfo(dpy, res, providers->providers[j]);
-    printf("Provider %d: id: %d cap: 0x%x", j, (int)providers->providers[j], info->capabilities);
-    for (k = 0; k < 4; k++)
-      if (info->capabilities & (1 << k))
-        printf(", %s", capability_name(1<<k));
+          
+          printf(
+            "Provider %d: id: %d cap: 0x%x", 
+            j, (int)providers->providers[j], info->capabilities);
 
-    printf(" crtcs: %d outputs: %d associated providers: %d name:%s\n", info->ncrtcs, info->noutputs, info->nassociatedproviders, info->name);
-    XRRFreeProviderInfo(info);
+          for (k = 0; k < 4; k++)
+            if (info->capabilities & (1 << k))
+              printf(", %s", capability_name(1<<k));
+
+          printf(
+            " crtcs: %d outputs: %d associated providers: %d name:%s\n", 
+            info->ncrtcs, info->noutputs, info->nassociatedproviders, info->name);
+          
+          XRRFreeProviderInfo(info);
+        }
       }
-  }
     }
 
     sc = XRRGetScreenInfo (dpy, root);
-
-    if (sc == NULL) 
-  exit (1);
+    if (sc == NULL) exit (1);
 
     current_size = XRRConfigCurrentConfiguration (sc, &current_rotation);
-
     sizes = XRRConfigSizes(sc, &nsize);
 
     if (have_pixel_size) {
-  for (size = 0; size < nsize; size++)
-  {
-      if (sizes[size].width == width && sizes[size].height == height)
-    break;
-  }
-  if (size >= nsize) {
-      fprintf (stderr,
-         "Size %dx%d not found in available modes\n", width, height);
-      exit (1);
-  }
-    }
-    else if (size < 0)
-  size = current_size;
+      for (size = 0; size < nsize; size++)
+        if (sizes[size].width == width && sizes[size].height == height) 
+          break;
+      
+      if (size >= nsize) {
+        fprintf (stderr, "Size %dx%d not found in available modes\n", width, height);
+        exit (1);
+      }
+
+    } // have_pixel_size 
+    else if (size < 0) size = current_size;
     else if (size >= nsize) {
-  fprintf (stderr,
-     "Size index %d is too large, there are only %d sizes\n",
-     size, nsize);
-  exit (1);
+      fprintf (stderr,
+        "Size index %d is too large, there are only %d sizes\n",
+        size, nsize);
+      exit (1);
     }
 
     if (rot < 0)
-    {
-  for (rot = 0; rot < 4; rot++)
-      if (1 << rot == (current_rotation & 0xf))
-    break;
-    }
+      for (rot = 0; rot < 4; rot++)
+        if (1 << rot == (current_rotation & 0xf))
+          break;
 
     current_rate = XRRConfigCurrentRate (sc);
 
-    if (rate < 0)
-    {
-  if (size == current_size)
-      rate = current_rate;
-  else
-      rate = 0;
-    }
-    else
-    {
-  rates = XRRConfigRates (sc, size, &nrate);
-  for (i = 0; i < nrate; i++)
-      if (rate == rates[i])
-    break;
-  if (i == nrate) {
-      fprintf (stderr, "Rate %.1f Hz not available for this size\n", rate);
-      exit (1);
-  }
-    }
+    if (rate < 0) {
+
+      if (size == current_size)
+          rate = current_rate;
+      else rate = 0;
+    
+    } else {
+    
+      rates = XRRConfigRates (sc, size, &nrate);
+      for (i = 0; i < nrate; i++)
+        if (rate == rates[i])
+          break;
+
+      if (i == nrate) {
+        fprintf (stderr, "Rate %.1f Hz not available for this size\n", rate);
+        exit (1);
+      }
+
+    } // rate < 0
 
     if (version) {
-  int major_version, minor_version;
-  XRRQueryVersion (dpy, &major_version, &minor_version);
-  printf("Server reports RandR version %d.%d\n", 
-         major_version, minor_version);
+      int major_version, minor_version;
+      XRRQueryVersion (dpy, &major_version, &minor_version);
+
+      printf(
+        "Server reports RandR version %d.%d\n", 
+        major_version, minor_version);
     }
 
     if (query || query_1) {
-        int j;
-  printf(" SZ:    Pixels          Physical       Refresh\n");
-  for (i = 0; i < nsize; i++) {
-      printf ("%c%-2d %5d x %-5d  (%4dmm x%4dmm )",
-        i == current_size ? '*' : ' ',
-        i, sizes[i].width, sizes[i].height,
-        sizes[i].mwidth, sizes[i].mheight);
-      rates = XRRConfigRates (sc, i, &nrate);
-      if (nrate) printf ("  ");
-      for (j = 0; j < nrate; j++)
-    printf ("%c%-4d",
-      i == current_size && rates[j] == current_rate ? '*' : ' ',
-      rates[j]);
-      printf ("\n");
-  }
-    }
+      int j;
+      printf(" SZ:    Pixels          Physical       Refresh\n");
+      for (i = 0; i < nsize; i++) {
+          printf (
+            "%c%-2d %5d x %-5d  (%4dmm x%4dmm )",
+            i == current_size ? '*' : ' ',
+            i, sizes[i].width, sizes[i].height,
+            sizes[i].mwidth, sizes[i].mheight);
+          
+          rates = XRRConfigRates (sc, i, &nrate);
+          if (nrate) printf ("  ");
+          
+          for (j = 0; j < nrate; j++) printf ("%c%-4d",
+            i == current_size && rates[j] == current_rate ? '*' : ' ',
+            rates[j]);
+
+          printf ("\n");
+      } // i++
+    } // query || query_1
+
 
     rotations = XRRConfigRotations(sc, &current_rotation);
 
     rotation = 1 << rot ;
     if (query) {
-      printf("Current rotation - %s\n",
-         rotation_name (current_rotation));
+      printf(
+        "Current rotation - %s\n",
+        rotation_name (current_rotation));
 
-  printf("Current reflection - %s\n",
-         reflection_name (current_rotation));
+      printf(
+        "Current reflection - %s\n",
+        reflection_name (current_rotation));
 
-  printf ("Rotations possible - ");
-  for (i = 0; i < 4; i ++) {
-      if ((rotations >> i) & 1)  printf("%s ", direction[i]);
-  }
-  printf ("\n");
+      printf ("Rotations possible - ");
+      for (i = 0; i < 4; i ++) {
+          if ((rotations >> i) & 1)  printf("%s ", direction[i]);
+      } printf ("\n");
 
-  printf ("Reflections possible - ");
-  if (rotations & (RR_Reflect_X|RR_Reflect_Y))
-  {
-      if (rotations & RR_Reflect_X) printf ("X Axis ");
-      if (rotations & RR_Reflect_Y) printf ("Y Axis");
-  }
-  else
-      printf ("none");
-  printf ("\n");
-    }
+      printf ("Reflections possible - ");
+      if (rotations & (RR_Reflect_X|RR_Reflect_Y)) {
+          if (rotations & RR_Reflect_X) printf ("X Axis ");
+          if (rotations & RR_Reflect_Y) printf ("Y Axis");
+      } else printf ("none");
+      
+      printf ("\n");
+    } // query 
+
 
     if (verbose) { 
-  printf("Setting size to %d, rotation to %s\n",  size, direction[rot]);
+      printf("Setting size to %d, rotation to %s\n",  size, direction[rot]);
 
-  printf ("Setting reflection on ");
-  if (reflection)
-  {
-      if (reflection & RR_Reflect_X) printf ("X Axis ");
-      if (reflection & RR_Reflect_Y) printf ("Y Axis");
-  }
-  else
-      printf ("neither axis");
-  printf ("\n");
+      printf ("Setting reflection on ");
+      if (reflection) {
+          if (reflection & RR_Reflect_X) printf ("X Axis ");
+          if (reflection & RR_Reflect_Y) printf ("Y Axis");
+      } else printf ("neither axis");
+      printf ("\n");
 
-  if (reflection & RR_Reflect_X) printf("Setting reflection on X axis\n");
-
-  if (reflection & RR_Reflect_Y) printf("Setting reflection on Y axis\n");
-    }
+      if (reflection & RR_Reflect_X) printf("Setting reflection on X axis\n");
+      if (reflection & RR_Reflect_Y) printf("Setting reflection on Y axis\n");
+    } // verbose
 
     /* we should test configureNotify on the root window */
     XSelectInput (dpy, root, StructureNotifyMask);
 
-    if (setit && !dryrun) XRRSelectInput (dpy, root,
-             RRScreenChangeNotifyMask);
-    if (setit && !dryrun) status = XRRSetScreenConfigAndRate (dpy, sc,
-               root,
-               (SizeID) size, (Rotation) (rotation | reflection), rate, CurrentTime);
+    if (setit && !dryrun) XRRSelectInput (
+      dpy, root, RRScreenChangeNotifyMask);
+
+    if (setit && !dryrun) status = XRRSetScreenConfigAndRate (
+      dpy, sc, root, (SizeID) size, (Rotation) (rotation | reflection),
+      rate, CurrentTime);
 
     if (setit && !dryrun && status == RRSetConfigFailed) {
-  printf ("Failed to change the screen configuration!\n");
-  ret = 1;
+      printf ("Failed to change the screen configuration!\n");
+      ret = 1;
     }
 
     if (verbose && setit && !dryrun && size != current_size) {
-  if (status == RRSetConfigSuccess)
-  {
-      Bool    seen_screen = False;
-      while (!seen_screen) {
-    int spo;
-    XNextEvent(dpy, (XEvent *) &event);
+      if (status == RRSetConfigSuccess) {
+        Bool seen_screen = False;
 
-    printf ("Event received, type = %d\n", event.type);
-    /* update Xlib's knowledge of the event */
-    XRRUpdateConfiguration (&event);
-    if (event.type == ConfigureNotify)
-        printf("Received ConfigureNotify Event!\n");
+        while (!seen_screen) {
+          int spo;
+          XNextEvent(dpy, (XEvent *) &event);
 
-    switch (event.type - event_base) {
-    case RRScreenChangeNotify:
-        sce = (XRRScreenChangeNotifyEvent *) &event;
+          printf ("Event received, type = %d\n", event.type);
+          /* update Xlib's knowledge of the event */
+          XRRUpdateConfiguration (&event);
+          if (event.type == ConfigureNotify)
+              printf("Received ConfigureNotify Event!\n");
 
-        printf("Got a screen change notify event!\n");
-        printf(" window = %d\n root = %d\n size_index = %d\n rotation %d\n", 
-         (int) sce->window, (int) sce->root, 
-         sce->size_index,  sce->rotation);
-        printf(" timestamp = %ld, config_timestamp = %ld\n",
-         sce->timestamp, sce->config_timestamp);
-        printf(" Rotation = %x\n", sce->rotation);
-        printf(" %d X %d pixels, %d X %d mm\n",
-         sce->width, sce->height, sce->mwidth, sce->mheight);
-        printf("Display width   %d, height   %d\n",
-         DisplayWidth(dpy, screen), DisplayHeight(dpy, screen));
-        printf("Display widthmm %d, heightmm %d\n", 
-         DisplayWidthMM(dpy, screen), DisplayHeightMM(dpy, screen));
-        spo = sce->subpixel_order;
-        if ((spo < 0) || (spo > 5))
-      printf ("Unknown subpixel order, value = %d\n", spo);
-        else printf ("new Subpixel rendering model is %s\n", order[spo]);
-        seen_screen = True;
-        break;
-    default:
-        if (event.type != ConfigureNotify) 
-      printf("unknown event received, type = %d!\n", event.type);
-    }
-      }
-  }
-    }
+          switch (event.type - event_base) {
+
+            case RRScreenChangeNotify:
+              sce = (XRRScreenChangeNotifyEvent *) &event;
+
+              printf("Got a screen change notify event!\n");
+              printf(" window = %d\n root = %d\n size_index = %d\n rotation %d\n", 
+              (int) sce->window, (int) sce->root, 
+              sce->size_index,  sce->rotation);
+              printf(" timestamp = %ld, config_timestamp = %ld\n",
+              sce->timestamp, sce->config_timestamp);
+              printf(" Rotation = %x\n", sce->rotation);
+              printf(" %d X %d pixels, %d X %d mm\n",
+              
+              sce->width, sce->height, sce->mwidth, sce->mheight);
+              printf("Display width   %d, height   %d\n",
+              DisplayWidth(dpy, screen), DisplayHeight(dpy, screen));
+              printf("Display widthmm %d, heightmm %d\n", 
+              DisplayWidthMM(dpy, screen), DisplayHeightMM(dpy, screen));
+              spo = sce->subpixel_order;
+              
+              if ((spo < 0) || (spo > 5)) 
+                printf ("Unknown subpixel order, value = %d\n", spo);
+              else printf ("new Subpixel rendering model is %s\n", order[spo]);
+
+              seen_screen = True;
+              break;
+
+            default:
+              if (event.type != ConfigureNotify) 
+                printf("unknown event received, type = %d!\n", event.type);
+          } // switch
+        } // while
+      } // status == RRSetConfigSuccess
+    } // if
     XRRFreeScreenConfigInfo(sc);
     return(ret);
 }

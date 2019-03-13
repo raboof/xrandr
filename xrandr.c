@@ -55,234 +55,227 @@ static Bool	grab_server = True;
 static Bool	no_primary = False;
 
 static const char *direction[5] = {
-    "normal", 
-    "left", 
-    "inverted", 
-    "right",
-    "\n"};
+  "normal", 
+  "left", 
+  "inverted", 
+  "right",
+  "\n"};
 
 static const char *reflections[5] = {
-    "normal", 
-    "x", 
-    "y", 
-    "xy",
-    "\n"};
+  "normal", 
+  "x", 
+  "y", 
+  "xy",
+  "\n"};
 
 /* subpixel order */
 static const char *order[6] = {
-    "unknown",
-    "horizontal rgb",
-    "horizontal bgr",
-    "vertical rgb",
-    "vertical bgr",
-    "no subpixels"};
+  "unknown",
+  "horizontal rgb",
+  "horizontal bgr",
+  "vertical rgb",
+  "vertical bgr",
+  "no subpixels"};
 
 static const struct {
-    const char	    *string;
-    unsigned long   flag;
+  const char     *string;
+  unsigned long   flag;
 } mode_flags[] = {
-    { "+HSync", RR_HSyncPositive },
-    { "-HSync", RR_HSyncNegative },
-    { "+VSync", RR_VSyncPositive },
-    { "-VSync", RR_VSyncNegative },
-    { "Interlace", RR_Interlace },
-    { "DoubleScan", RR_DoubleScan },
-    { "CSync",	    RR_CSync },
-    { "+CSync",	    RR_CSyncPositive },
-    { "-CSync",	    RR_CSyncNegative },
-    { NULL,	    0 }
+  { "+HSync", RR_HSyncPositive },
+  { "-HSync", RR_HSyncNegative },
+  { "+VSync", RR_VSyncPositive },
+  { "-VSync", RR_VSyncNegative },
+  { "Interlace",  RR_Interlace },
+  { "DoubleScan", RR_DoubleScan },
+  { "CSync",	    RR_CSync },
+  { "+CSync",     RR_CSyncPositive },
+  { "-CSync",     RR_CSyncNegative },
+  { NULL,     0 }
 };
 
 static void _X_NORETURN
-usage(void)
-{
-    fprintf(stderr, "usage: %s [options]\n", program_name);
-    fprintf(stderr, "  where options are:\n");
-    fprintf(stderr, "  -display <display> or -d <display>\n");
-    fprintf(stderr, "  -help\n");
-    fprintf(stderr, "  -o <normal,inverted,left,right,0,1,2,3>\n");
-    fprintf(stderr, "            or --orientation <normal,inverted,left,right,0,1,2,3>\n");
-    fprintf(stderr, "  -q        or --query\n");
-    fprintf(stderr, "  -s <size>/<width>x<height> or --size <size>/<width>x<height>\n");
-    fprintf(stderr, "  -r <rate> or --rate <rate> or --refresh <rate>\n");
-    fprintf(stderr, "  -v        or --version\n");
-    fprintf(stderr, "  -x        (reflect in x)\n");
-    fprintf(stderr, "  -y        (reflect in y)\n");
-    fprintf(stderr, "  --screen <screen>\n");
-    fprintf(stderr, "  --verbose\n");
-    fprintf(stderr, "  --current\n");
-    fprintf(stderr, "  --dryrun\n");
-    fprintf(stderr, "  --nograb\n");
-    fprintf(stderr, "  --prop or --properties\n");
-    fprintf(stderr, "  --fb <width>x<height>\n");
-    fprintf(stderr, "  --fbmm <width>x<height>\n");
-    fprintf(stderr, "  --dpi <dpi>/<output>\n");
-    fprintf(stderr, "  --output <output>\n");
-    fprintf(stderr, "      --auto\n");
-    fprintf(stderr, "      --mode <mode>\n");
-    fprintf(stderr, "      --preferred\n");
-    fprintf(stderr, "      --pos <x>x<y>\n");
-    fprintf(stderr, "      --rate <rate> or --refresh <rate>\n");
-    fprintf(stderr, "      --reflect normal,x,y,xy\n");
-    fprintf(stderr, "      --rotate normal,inverted,left,right\n");
-    fprintf(stderr, "      --left-of <output>\n");
-    fprintf(stderr, "      --right-of <output>\n");
-    fprintf(stderr, "      --above <output>\n");
-    fprintf(stderr, "      --below <output>\n");
-    fprintf(stderr, "      --same-as <output>\n");
-    fprintf(stderr, "      --set <property> <value>\n");
-    fprintf(stderr, "      --scale <x>x<y>\n");
-    fprintf(stderr, "      --scale-from <w>x<h>\n");
-    fprintf(stderr, "      --transform <a>,<b>,<c>,<d>,<e>,<f>,<g>,<h>,<i>\n");
-    fprintf(stderr, "      --off\n");
-    fprintf(stderr, "      --crtc <crtc>\n");
-    fprintf(stderr, "      --panning <w>x<h>[+<x>+<y>[/<track:w>x<h>+<x>+<y>[/<border:l>/<t>/<r>/<b>]]]\n");
-    fprintf(stderr, "      --gamma <r>:<g>:<b>\n");
-    fprintf(stderr, "      --primary\n");
-    fprintf(stderr, "  --noprimary\n");
-    fprintf(stderr, "  --newmode <name> <clock MHz>\n");
-    fprintf(stderr, "            <hdisp> <hsync-start> <hsync-end> <htotal>\n");
-    fprintf(stderr, "            <vdisp> <vsync-start> <vsync-end> <vtotal>\n");
-    fprintf(stderr, "            [flags...]\n");
-    fprintf(stderr, "            Valid flags: +HSync -HSync +VSync -VSync\n");
-    fprintf(stderr, "                         +CSync -CSync CSync Interlace DoubleScan\n");
-    fprintf(stderr, "  --rmmode <name>\n");
-    fprintf(stderr, "  --addmode <output> <name>\n");
-    fprintf(stderr, "  --delmode <output> <name>\n");
-    fprintf(stderr, "  --listproviders\n");
-    fprintf(stderr, "  --setprovideroutputsource <prov-xid> <source-xid>\n");
-    fprintf(stderr, "  --setprovideroffloadsink <prov-xid> <sink-xid>\n");
+usage(void) {
+  fprintf(stderr, "usage: %s [options]\n", program_name);
+  fprintf(stderr, "  where options are:\n");
+  fprintf(stderr, "  -display <display> or -d <display>\n");
+  fprintf(stderr, "  -help\n");
+  fprintf(stderr, "  -o <normal,inverted,left,right,0,1,2,3>\n");
+  fprintf(stderr, "            or --orientation <normal,inverted,left,right,0,1,2,3>\n");
+  fprintf(stderr, "  -q        or --query\n");
+  fprintf(stderr, "  -s <size>/<width>x<height> or --size <size>/<width>x<height>\n");
+  fprintf(stderr, "  -r <rate> or --rate <rate> or --refresh <rate>\n");
+  fprintf(stderr, "  -v        or --version\n");
+  fprintf(stderr, "  -x        (reflect in x)\n");
+  fprintf(stderr, "  -y        (reflect in y)\n");
+  fprintf(stderr, "  --screen <screen>\n");
+  fprintf(stderr, "  --verbose\n");
+  fprintf(stderr, "  --current\n");
+  fprintf(stderr, "  --dryrun\n");
+  fprintf(stderr, "  --nograb\n");
+  fprintf(stderr, "  --prop or --properties\n");
+  fprintf(stderr, "  --fb <width>x<height>\n");
+  fprintf(stderr, "  --fbmm <width>x<height>\n");
+  fprintf(stderr, "  --dpi <dpi>/<output>\n");
+  fprintf(stderr, "  --output <output>\n");
+  fprintf(stderr, "      --auto\n");
+  fprintf(stderr, "      --mode <mode>\n");
+  fprintf(stderr, "      --preferred\n");
+  fprintf(stderr, "      --pos <x>x<y>\n");
+  fprintf(stderr, "      --rate <rate> or --refresh <rate>\n");
+  fprintf(stderr, "      --reflect normal,x,y,xy\n");
+  fprintf(stderr, "      --rotate normal,inverted,left,right\n");
+  fprintf(stderr, "      --left-of <output>\n");
+  fprintf(stderr, "      --right-of <output>\n");
+  fprintf(stderr, "      --above <output>\n");
+  fprintf(stderr, "      --below <output>\n");
+  fprintf(stderr, "      --same-as <output>\n");
+  fprintf(stderr, "      --set <property> <value>\n");
+  fprintf(stderr, "      --scale <x>x<y>\n");
+  fprintf(stderr, "      --scale-from <w>x<h>\n");
+  fprintf(stderr, "      --transform <a>,<b>,<c>,<d>,<e>,<f>,<g>,<h>,<i>\n");
+  fprintf(stderr, "      --off\n");
+  fprintf(stderr, "      --crtc <crtc>\n");
+  fprintf(stderr, "      --panning <w>x<h>[+<x>+<y>[/<track:w>x<h>+<x>+<y>[/<border:l>/<t>/<r>/<b>]]]\n");
+  fprintf(stderr, "      --gamma <r>:<g>:<b>\n");
+  fprintf(stderr, "      --primary\n");
+  fprintf(stderr, "  --noprimary\n");
+  fprintf(stderr, "  --newmode <name> <clock MHz>\n");
+  fprintf(stderr, "            <hdisp> <hsync-start> <hsync-end> <htotal>\n");
+  fprintf(stderr, "            <vdisp> <vsync-start> <vsync-end> <vtotal>\n");
+  fprintf(stderr, "            [flags...]\n");
+  fprintf(stderr, "            Valid flags: +HSync -HSync +VSync -VSync\n");
+  fprintf(stderr, "                         +CSync -CSync CSync Interlace DoubleScan\n");
+  fprintf(stderr, "  --rmmode <name>\n");
+  fprintf(stderr, "  --addmode <output> <name>\n");
+  fprintf(stderr, "  --delmode <output> <name>\n");
+  fprintf(stderr, "  --listproviders\n");
+  fprintf(stderr, "  --setprovideroutputsource <prov-xid> <source-xid>\n");
+  fprintf(stderr, "  --setprovideroffloadsink <prov-xid> <sink-xid>\n");
 
-    exit(1);
-    /*NOTREACHED*/
+  exit(1);
+  /*NOTREACHED*/
 }
 
 static void _X_NORETURN
-fatal (const char *format, ...)
-{
-    va_list ap;
-    
-    va_start (ap, format);
-    fprintf (stderr, "%s: ", program_name);
-    vfprintf (stderr, format, ap);
-    va_end (ap);
-    exit (1);
-    /*NOTREACHED*/
+fatal (const char *format, ...) {
+  va_list ap;
+  
+  va_start (ap, format);
+  fprintf (stderr, "%s: ", program_name);
+  vfprintf (stderr, format, ap);
+  va_end (ap);
+  exit (1);
+  /*NOTREACHED*/
 }
 
 static void
-warning (const char *format, ...)
-{
-    va_list ap;
-    
-    va_start (ap, format);
-    fprintf (stderr, "%s: ", program_name);
-    vfprintf (stderr, format, ap);
-    va_end (ap);
+warning (const char *format, ...) {
+  va_list ap;
+  
+  va_start (ap, format);
+  fprintf (stderr, "%s: ", program_name);
+  vfprintf (stderr, format, ap);
+  va_end (ap);
 }
 
 /* Because fmin requires C99 suppport */
-static inline double dmin (double x, double y)
-{
-    return x < y ? x : y;
+static inline double dmin (double x, double y) {
+  return x < y ? x : y;
 }
 
 static const char *
-rotation_name (Rotation rotation)
-{
-    int	i;
+rotation_name (Rotation rotation) {
+  int	i;
+  if ((rotation & 0xf) == 0) return "normal";
 
-    if ((rotation & 0xf) == 0)
-  return "normal";
-    for (i = 0; i < 4; i++)
-  if (rotation & (1 << i))
+  for (i = 0; i < 4; i++)
+    if (rotation & (1 << i))
       return direction[i];
+
     return "invalid rotation";
 }
 
 static const char *
-reflection_name (Rotation rotation)
-{
-    rotation &= (RR_Reflect_X|RR_Reflect_Y);
-    switch (rotation) {
+reflection_name (Rotation rotation) {
+  rotation &= (RR_Reflect_X|RR_Reflect_Y);
+  switch (rotation) {
     case 0:
-  return "none";
+      return "none";
     case RR_Reflect_X:
-  return "X axis";
+      return "X axis";
     case RR_Reflect_Y:
-  return "Y axis";
+      return "Y axis";
     case RR_Reflect_X|RR_Reflect_Y:
-  return "X and Y axis";
-    }
-    return "invalid reflection";
+     return "X and Y axis";
+  }
+  return "invalid reflection";
 }
 
 static const char *
-capability_name (int cap_bit)
-{
-    switch (cap_bit) {
+capability_name (int cap_bit) {
+  switch (cap_bit) {
     case RR_Capability_SourceOutput:
-  return "Source Output";
+      return "Source Output";
     case RR_Capability_SinkOutput:
-  return "Sink Output";
+      return "Sink Output";
     case RR_Capability_SourceOffload:
-  return "Source Offload";
+      return "Source Offload";
     case RR_Capability_SinkOffload:
-  return "Sink Offload";
-    }
-    return "invalid capability";
+      return "Sink Offload";
+  }
+  return "invalid capability";
 }
 
 typedef enum _relation {
-    relation_left_of,
-    relation_right_of,
-    relation_above,
-    relation_below,
-    relation_same_as,
+  relation_left_of,
+  relation_right_of,
+  relation_above,
+  relation_below,
+  relation_same_as,
 } relation_t;
 
 typedef struct {
-    int	    x, y, width, height;
+  int x, y, width, height;
 } rectangle_t;
 
 typedef struct {
-    int	    x1, y1, x2, y2;
+  int x1, y1, x2, y2;
 } box_t;
 
 typedef struct {
-    int	    x, y;
+  int x, y;
 } point_t;
 
 typedef enum _changes {
-    changes_none = 0,
-    changes_crtc = (1 << 0),
-    changes_mode = (1 << 1),
-    changes_relation = (1 << 2),
-    changes_position = (1 << 3),
-    changes_rotation = (1 << 4),
-    changes_reflection = (1 << 5),
-    changes_automatic = (1 << 6),
-    changes_refresh = (1 << 7),
-    changes_property = (1 << 8),
-    changes_transform = (1 << 9),
-    changes_panning = (1 << 10),
-    changes_gamma = (1 << 11),
-    changes_primary = (1 << 12),
+  changes_none = 0,
+  changes_crtc = (1 << 0),
+  changes_mode = (1 << 1),
+  changes_relation = (1 << 2),
+  changes_position = (1 << 3),
+  changes_rotation = (1 << 4),
+  changes_reflection = (1 << 5),
+  changes_automatic = (1 << 6),
+  changes_refresh = (1 << 7),
+  changes_property = (1 << 8),
+  changes_transform = (1 << 9),
+  changes_panning = (1 << 10),
+  changes_gamma = (1 << 11),
+  changes_primary = (1 << 12),
 } changes_t;
 
 typedef enum _name_kind {
-    name_none = 0,
-    name_string = (1 << 0),
-    name_xid = (1 << 1),
-    name_index = (1 << 2),
-    name_preferred = (1 << 3),
+  name_none = 0,
+  name_string = (1 << 0),
+  name_xid = (1 << 1),
+  name_index = (1 << 2),
+  name_preferred = (1 << 3),
 } name_kind_t;
 
 typedef struct {
-    name_kind_t	    kind;
-    char    	    *string;
-    XID	    	    xid;
-    int		    index;
+  name_kind_t  kind;
+  char        *string;
+  XID          xid;
+  int          index;
 } name_t;
 
 typedef struct _crtc crtc_t;
@@ -292,96 +285,84 @@ typedef struct _umode	umode_t;
 typedef struct _output_prop output_prop_t;
 
 struct _transform {
-    XTransform	    transform;
-    const char	    *filter;
-    int		    nparams;
-    XFixed	    *params;
+  XTransform   transform;
+  const char  *filter;
+  int          nparams;
+  XFixed      *params;
 };
 
 struct _crtc {
-    name_t	    crtc;
-    Bool	    changing;
-    XRRCrtcInfo	    *crtc_info;
-
-    XRRModeInfo	    *mode_info;
-    XRRPanning      *panning_info;
-    int		    x;
-    int		    y;
-    Rotation	    rotation;
-    output_t	    **outputs;
-    int		    noutput;
-    transform_t	    current_transform, pending_transform;
+  name_t          crtc;
+  Bool            changing;
+  XRRCrtcInfo    *crtc_info;
+  XRRModeInfo    *mode_info;
+  XRRPanning     *panning_info;
+  int             x;
+  int             y;
+  Rotation        rotation;
+  output_t      **outputs;
+  int             noutput;
+  transform_t     current_transform, pending_transform;
 };
 
 struct _output_prop {
-    struct _output_prop	*next;
-    char		*name;
-    char		*value;
+  struct _output_prop   *next;
+  char                  *name;
+  char                  *value;
 };
 
 struct _output {
-    struct _output   *next;
-    
-    changes_t	    changes;
-    
-    output_prop_t   *props;
+  struct _output   *next;
+  changes_t         changes;
+  output_prop_t    *props;
+  name_t            output;
+  XRROutputInfo    *output_info;
+  name_t            crtc;
+  crtc_t           *crtc_info;
+  crtc_t           *current_crtc_info;
+  name_t            mode;
+  double            refresh;
+  XRRModeInfo      *mode_info;
+  name_t            addmode;
+  relation_t        relation;
+  char             *relative_to;
+  int               x, y;
+  Rotation          rotation;
+  XRRPanning        panning;
+  Bool              automatic;
+  int               scale_from_w, scale_from_h;
+  transform_t       transform;
 
-    name_t	    output;
-    XRROutputInfo   *output_info;
-    
-    name_t	    crtc;
-    crtc_t	    *crtc_info;
-    crtc_t	    *current_crtc_info;
-    
-    name_t	    mode;
-    double	    refresh;
-    XRRModeInfo	    *mode_info;
-    
-    name_t	    addmode;
+  struct {
+    float red;
+    float green;
+    float blue;
+  } gamma;
 
-    relation_t	    relation;
-    char	    *relative_to;
-
-    int		    x, y;
-    Rotation	    rotation;
-
-    XRRPanning      panning;
-
-    Bool    	    automatic;
-    int     	    scale_from_w, scale_from_h;
-    transform_t	    transform;
-
-    struct {
-  float red;
-  float green;
-  float blue;
-    } gamma;
-
-    float	    brightness;
-
-    Bool	    primary;
-
-    Bool	    found;
+  float             brightness;
+  Bool              primary;
+  Bool              found;
 };
 
 typedef enum _umode_action {
-    umode_create, umode_destroy, umode_add, umode_delete
+  umode_create, umode_destroy, umode_add, umode_delete
 } umode_action_t;
 
 
 struct _umode {
-    struct _umode   *next;
+  struct _umode  *next;
     
-    umode_action_t  action;
-    XRRModeInfo	    mode;
-    name_t	    output;
-    name_t	    name;
+  umode_action_t  action;
+  XRRModeInfo     mode;
+  name_t          output;
+  name_t          name;
 };
 
 static const char *connection[3] = {
-    "connected",
-    "disconnected",
-    "unknown connection"};
+  "connected",
+  "disconnected",
+  "unknown connection"
+};
 
 #define OUTPUT_NAME 1
 
@@ -396,21 +377,21 @@ static const char *connection[3] = {
 
 #define POS_UNSET   -1
 
-static output_t	*outputs = NULL;
-static output_t	**outputs_tail = &outputs;
-static crtc_t	*crtcs;
-static umode_t	*umodes;
-static int	num_crtcs;
+static output_t     *outputs = NULL;
+static output_t    **outputs_tail = &outputs;
+static crtc_t       *crtcs;
+static umode_t      *umodes;
+static int           num_crtcs;
 static XRRScreenResources  *res;
-static int	fb_width = 0, fb_height = 0;
-static int	fb_width_mm = 0, fb_height_mm = 0;
-static double	dpi = 0;
-static char	*dpi_output = NULL;
-static Bool	dryrun = False;
-static int	minWidth, maxWidth, minHeight, maxHeight;
-static Bool    	has_1_2 = False;
-static Bool    	has_1_3 = False;
-static int      provider_xid, output_source_provider_xid, offload_sink_provider_xid;
+static int           fb_width = 0, fb_height = 0;
+static int           fb_width_mm = 0, fb_height_mm = 0;
+static double        dpi = 0;
+static char         *dpi_output = NULL;
+static Bool          dryrun = False;
+static int           minWidth, maxWidth, minHeight, maxHeight;
+static Bool          has_1_2 = False;
+static Bool          has_1_3 = False;
+static int           provider_xid, output_source_provider_xid, offload_sink_provider_xid;
 
 static int
 mode_height (XRRModeInfo *mode_info, Rotation rotation)

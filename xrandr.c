@@ -192,7 +192,7 @@ rotation_name (Rotation rotation) {
     if (rotation & (1 << i))
       return direction[i];
 
-    return "invalid rotation";
+  return "invalid rotation";
 }
 
 static const char *
@@ -1000,15 +1000,17 @@ set_gamma_info(output_t *output) {
     best_array = gamma->blue;
   }
 
-  if (last_best == 0)
-    last_best = 1;
+  if (last_best == 0) last_best = 1;
 
-    middle = last_best / 2;
-    i1 = (double)(middle + 1) / size;
-    v1 = (double)(best_array[middle]) / 65535;
-    i2 = (double)(last_best + 1) / size;
-    v2 = (double)(best_array[last_best]) / 65535;
-    if (v2 < 0.0001) { /* The screen is black */
+  middle = last_best / 2;
+  i1 = (double)(middle + 1) / size;
+  v1 = (double)(best_array[middle]) / 65535;
+  i2 = (double)(last_best + 1) / size;
+  v2 = (double)(best_array[last_best]) / 65535;
+  
+  if (v2 < 0.0001) { 
+  
+    /* The screen is black */
     output->brightness = 0;
     output->gamma.red = 1;
     output->gamma.green = 1;

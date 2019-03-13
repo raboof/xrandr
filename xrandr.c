@@ -3007,18 +3007,21 @@ main (int argc, char **argv)
 
       // if we got here, there's an error in the argv[]
       usage();
-      } // end of the for loop parsing the CLI
+    } // end of the for loop parsing the CLI
+
 
     if (!action_requested) query = True;
     
-    if (verbose) {
-      query = True;
-      if (setit && !setit_1_2) query_1 = True;
-    }
+    if (verbose) { query = True; 
+      if (setit && !setit_1_2) query_1 = True; }
 
     if (version) printf("xrandr program version       " VERSION "\n");
 
+
     dpy = XOpenDisplay (display_name);
+    /** START
+        all error controls associated to "dpy = XOpenDisplay"
+     */
     if (dpy == NULL) {
       fprintf (stderr, "Can't open display %s\n", XDisplayName(display_name));
       exit (1);
@@ -3039,61 +3042,66 @@ main (int argc, char **argv)
       fprintf (stderr, "RandR extension missing\n");
       exit (1);
     }
+    /** END
+        all error controls associated to "dpy = XOpenDisplay"
+     */
+
 
     if (major > 1 || (major == 1 && minor >= 2)) has_1_2 = True;
     if (major > 1 || (major == 1 && minor >= 3)) has_1_3 = True;
   
     if (has_1_2 && modeit) {
-    umode_t	*m;
+      umode_t	*m;
 
-    get_screen (current);
-    get_crtcs();
-    get_outputs();
-    
-    for (m = umodes; m; m = m->next) {
-      XRRModeInfo *e;
-      output_t	*o;
+      get_screen (current);
+      get_crtcs();
+      get_outputs();
       
-      switch (m->action) {
+      for (m = umodes; m; m = m->next) {
+        XRRModeInfo *e;
+        output_t	*o;
         
-        case umode_create:
-          XRRCreateMode (dpy, root, &m->mode);
-          break;
+        switch (m->action) {
+          
+          case umode_create:
+            XRRCreateMode (dpy, root, &m->mode);
+            break;
 
-        case umode_destroy:
-          e = find_mode (&m->name, 0);
-          if (!e)	fatal ("cannot find mode \"%s\"\n", m->name.string);
+          case umode_destroy:
+            e = find_mode (&m->name, 0);
+            if (!e)	fatal ("cannot find mode \"%s\"\n", m->name.string);
 
-          XRRDestroyMode (dpy, e->id);
-          break;
+            XRRDestroyMode (dpy, e->id);
+            break;
 
-        case umode_add:
-          o = find_output (&m->output);
-          if (!o)	fatal ("cannot find output \"%s\"\n", m->output.string);
+          case umode_add:
+            o = find_output (&m->output);
+            if (!o)	fatal ("cannot find output \"%s\"\n", m->output.string);
 
-          e = find_mode (&m->name, 0);
-          if (!e)	fatal ("cannot find mode \"%s\"\n", m->name.string);
+            e = find_mode (&m->name, 0);
+            if (!e)	fatal ("cannot find mode \"%s\"\n", m->name.string);
 
-          XRRAddOutputMode (dpy, o->output.xid, e->id);
-          break;
+            XRRAddOutputMode (dpy, o->output.xid, e->id);
+            break;
 
-        case umode_delete:
-          o = find_output (&m->output);
-          if (!o)	fatal ("cannot find output \"%s\"\n", m->output.string);
+          case umode_delete:
+            o = find_output (&m->output);
+            if (!o)	fatal ("cannot find output \"%s\"\n", m->output.string);
 
-          e = find_mode (&m->name, 0);
-          if (!e)	fatal ("cannot find mode \"%s\"\n", m->name.string);
+            e = find_mode (&m->name, 0);
+            if (!e)	fatal ("cannot find mode \"%s\"\n", m->name.string);
 
-          XRRDeleteOutputMode (dpy, o->output.xid, e->id);
-          break;
+            XRRDeleteOutputMode (dpy, o->output.xid, e->id);
+            break;
+        }
       }
-    }
-    
-    if (!setit_1_2)	{
-      XSync (dpy, False);
-      exit (0);
-    }
+      
+      if (!setit_1_2)	{
+        XSync (dpy, False);
+        exit (0);
+      }
     } // has_1_2 && modeit
+
 
     if (has_1_2 && propit) {
   
@@ -3184,100 +3192,100 @@ main (int argc, char **argv)
       }
     } // has_1_2 && propit
 
-    if (has_1_2 && provsetoutsource) {
-      XRRSetProviderOutputSource(dpy, provider_xid, output_source_provider_xid);
-    }
 
-    if (has_1_2 && provsetoffsink) {
+    if (has_1_2 && provsetoutsource) 
+      XRRSetProviderOutputSource(dpy, provider_xid, output_source_provider_xid);
+
+    if (has_1_2 && provsetoffsink) 
       XRRSetProviderOffloadSink(dpy, provider_xid, offload_sink_provider_xid);
-    }
+
 
     if (setit_1_2) {
-    get_screen (current);
-    get_crtcs ();
-    get_outputs ();
-    set_positions ();
-    set_screen_size ();
+      get_screen (current);
+      get_crtcs ();
+      get_outputs ();
+      set_positions ();
+      set_screen_size ();
 
-    pick_crtcs ();
+      pick_crtcs ();
 
-    /*
-    * Assign outputs to crtcs
-    */
-    set_crtcs ();
-    
-    /*
-    * Mark changing crtcs
-    */
-    mark_changing_crtcs ();
-
-    /*
-    * If an output was specified to track dpi, use it
-    */
-    if (dpi_output) {
-      output_t		*output = find_output_by_name (dpi_output);
-      XRROutputInfo	*output_info;
-      XRRModeInfo		*mode_info;
-
-      if (!output) fatal ("Cannot find output %s\n", dpi_output);
-
-      output_info = output->output_info;
-      mode_info = output->mode_info;
+      /*
+      * Assign outputs to crtcs
+      */
+      set_crtcs ();
       
-      if (output_info && mode_info && output_info->mm_height) {
-        /*
-        * When this output covers the whole screen, just use
-        * the known physical size
-        */
-        if (fb_width == mode_info->width &&
-          fb_height == mode_info->height)	{
+      /*
+      * Mark changing crtcs
+      */
+      mark_changing_crtcs ();
 
-          fb_width_mm = output_info->mm_width;
-          fb_height_mm = output_info->mm_height;
+      /*
+      * If an output was specified to track dpi, use it
+      */
+      if (dpi_output) {
+        output_t		*output = find_output_by_name (dpi_output);
+        XRROutputInfo	*output_info;
+        XRRModeInfo		*mode_info;
 
-        } else {
-          dpi = (25.4 * mode_info->height) / output_info->mm_height;
-        }
-      }
-    } // dpi_output
+        if (!output) fatal ("Cannot find output %s\n", dpi_output);
 
-    /*
-    * Compute physical screen size
-    */
-    if (fb_width_mm == 0 || fb_height_mm == 0) {
-      if (fb_width != DisplayWidth (dpy, screen) ||
-        fb_height != DisplayHeight (dpy, screen) || dpi != 0.0)	{
+        output_info = output->output_info;
+        mode_info = output->mode_info;
         
-        if (dpi <= 0)
-          dpi = (25.4 * DisplayHeight (dpy, screen)) / DisplayHeightMM(dpy, screen);
+        if (output_info && mode_info && output_info->mm_height) {
+          /*
+          * When this output covers the whole screen, just use
+          * the known physical size
+          */
+          if (fb_width == mode_info->width &&
+            fb_height == mode_info->height)	{
 
-        fb_width_mm = (25.4 * fb_width) / dpi;
-        fb_height_mm = (25.4 * fb_height) / dpi;
+            fb_width_mm = output_info->mm_width;
+            fb_height_mm = output_info->mm_height;
+
+          } else {
+            dpi = (25.4 * mode_info->height) / output_info->mm_height;
+          }
+        }
+      } // dpi_output
+
+      /*
+      * Compute physical screen size
+      */
+      if (fb_width_mm == 0 || fb_height_mm == 0) {
+        if (fb_width != DisplayWidth (dpy, screen) ||
+          fb_height != DisplayHeight (dpy, screen) || dpi != 0.0)	{
+          
+          if (dpi <= 0)
+            dpi = (25.4 * DisplayHeight (dpy, screen)) / DisplayHeightMM(dpy, screen);
+
+          fb_width_mm = (25.4 * fb_width) / dpi;
+          fb_height_mm = (25.4 * fb_height) / dpi;
+        
+        } else {
+          fb_width_mm = DisplayWidthMM (dpy, screen);
+          fb_height_mm = DisplayHeightMM (dpy, screen);
+        }
+      } // fb_width_mm == 0 || fb_height_mm == 0
       
-      } else {
-        fb_width_mm = DisplayWidthMM (dpy, screen);
-        fb_height_mm = DisplayHeightMM (dpy, screen);
-      }
-    } // fb_width_mm == 0 || fb_height_mm == 0
-    
-    /*
-    * Set panning
-    */
-    set_panning ();
+      /*
+      * Set panning
+      */
+      set_panning ();
 
-    /* 
-    * Set gamma on crtc's that belong to the outputs.
-    */
-    set_gamma ();
+      /* 
+      * Set gamma on crtc's that belong to the outputs.
+      */
+      set_gamma ();
 
-    /*
-    * Now apply all of the changes
-    */
-    apply ();
-    
-    XSync (dpy, False);
+      /*
+      * Now apply all of the changes
+      */
+      apply ();
+      
+      XSync (dpy, False);
 
-    exit (0);
+      exit (0);
     } // setit_1_2
 
     if (query_1_2 || (query && has_1_2 && !query_1))

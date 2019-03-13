@@ -2358,583 +2358,584 @@ print_output_property_value(Bool is_edid,
 int
 main (int argc, char **argv)
 {
-    XRRScreenSize *sizes;
-    XRRScreenConfiguration *sc;
-    int		nsize;
-    int		nrate;
-    short		*rates;
-    Status	status = RRSetConfigFailed;
-    int		rot = -1;
-    int		query = False;
-    int		action_requested = False;
-    Rotation	rotation, current_rotation, rotations;
-    XEvent	event;
+    XRRScreenSize 			   *sizes;
+    XRRScreenConfiguration 	   *sc;
+    int							nsize;
+    int							nrate;
+    short					   *rates;
+    Status						status = RRSetConfigFailed;
+    int							rot = -1;
+    int							query = False;
+    int							action_requested = False;
+    Rotation					rotation, current_rotation, rotations;
+    XEvent						event;
     XRRScreenChangeNotifyEvent *sce;    
-    char          *display_name = NULL;
-    int 		i;
-    SizeID	current_size;
-    short	current_rate;
-    double    	rate = -1;
-    int		size = -1;
-    int		dirind = 0;
-    Bool	setit = False;
-    Bool    	version = False;
-    int		event_base, error_base;
-    int		reflection = 0;
-    int		width = 0, height = 0;
-    Bool    	have_pixel_size = False;
-    int		ret = 0;
-    output_t	*output = NULL;
-    Bool    	setit_1_2 = False;
-    Bool    	query_1_2 = False;
-    Bool	modeit = False;
-    Bool	propit = False;
-    Bool	query_1 = False;
-    Bool        provsetoutsource = False;
-    Bool        provsetoffsink = False;
-    int		major, minor;
-    Bool	current = False;
+    char        			   *display_name = NULL;
+    int 						i;
+    SizeID						current_size;
+    short						current_rate;
+    double    					rate = -1;
+    int							size = -1;
+    int							dirind = 0;
+    Bool						setit = False;
+    Bool    					version = False;
+    int							event_base, error_base;
+    int							reflection = 0;
+    int							width = 0, height = 0;
+    Bool    					have_pixel_size = False;
+    int							ret = 0;
+    output_t				   *output = NULL;
+    Bool    					setit_1_2 = False;
+    Bool    					query_1_2 = False;
+    Bool						modeit = False;
+    Bool						propit = False;
+    Bool						query_1 = False;
+    Bool        				provsetoutsource = False;
+    Bool        				provsetoffsink = False;
+    int							major, minor;
+    Bool						current = False;
 
     program_name = argv[0];
     for (i = 1; i < argc; i++) {
-	if (!strcmp ("-display", argv[i]) || !strcmp ("-d", argv[i])) {
-	    if (++i>=argc) usage ();
-	    display_name = argv[i];
-	    continue;
-	}
-	if (!strcmp("-help", argv[i])) {
-	    usage();
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--verbose", argv[i])) {
-	    verbose = True;
-	    continue;
-	}
-	if (!strcmp ("--dryrun", argv[i])) {
-	    dryrun = True;
-	    verbose = True;
-	    continue;
-	}
-	if (!strcmp ("--nograb", argv[i])) {
-	    grab_server = False;
-	    continue;
-	}
-	if (!strcmp("--current", argv[i])) {
-	    current = True;
-	    continue;
-	}
-
-	if (!strcmp ("-s", argv[i]) || !strcmp ("--size", argv[i])) {
-	    if (++i>=argc) usage ();
-	    if (sscanf (argv[i], "%dx%d", &width, &height) == 2) {
-		have_pixel_size = True;
-	    } else {
-		size = check_strtol(argv[i]);
-                if (size < 0) usage();
-            }
-	    setit = True;
-	    action_requested = True;
-	    continue;
-	}
-
-	if (!strcmp ("-r", argv[i]) ||
-	    !strcmp ("--rate", argv[i]) ||
-	    !strcmp ("--refresh", argv[i]))
-	{
-	    if (++i>=argc) usage ();
-	    rate = check_strtod(argv[i]);
-	    setit = True;
-	    if (output)
-	    {
-		output->refresh = rate;
-		output->changes |= changes_refresh;
-		setit_1_2 = True;
-	    }
-	    action_requested = True;
-	    continue;
-	}
-
-	if (!strcmp ("-v", argv[i]) || !strcmp ("--version", argv[i])) {
-	    version = True;
-	    action_requested = True;
-	    continue;
-	}
-
-	if (!strcmp ("-x", argv[i])) {
-	    reflection |= RR_Reflect_X;
-	    setit = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("-y", argv[i])) {
-	    reflection |= RR_Reflect_Y;
-	    setit = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--screen", argv[i])) {
-	    if (++i>=argc) usage ();
-	    screen = check_strtol(argv[i]);
-	    if (screen < 0) usage();
-	    continue;
-	}
-	if (!strcmp ("-q", argv[i]) || !strcmp ("--query", argv[i])) {
-	    query = True;
-	    continue;
-	}
-	if (!strcmp ("-o", argv[i]) || !strcmp ("--orientation", argv[i])) {
-	    char *endptr;
-	    if (++i>=argc) usage ();
-	    dirind = strtol(argv[i], &endptr, 10);
-	    if (argv[i] == endptr) {
-		for (dirind = 0; dirind < 4; dirind++) {
-		    if (strcmp (direction[dirind], argv[i]) == 0) break;
+		if (!strcmp ("-display", argv[i]) || !strcmp ("-d", argv[i])) {
+			if (++i>=argc) usage ();
+			display_name = argv[i];
+			continue;
 		}
-		if ((dirind < 0) || (dirind > 3))  usage();
-	    }
-	    rot = dirind;
-	    setit = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--prop", argv[i]) ||
-	    !strcmp ("--props", argv[i]) ||
-	    !strcmp ("--madprops", argv[i]) ||
-	    !strcmp ("--properties", argv[i]))
-	{
-	    query_1_2 = True;
-	    properties = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--output", argv[i])) {
-	    if (++i >= argc) usage();
+		if (!strcmp("-help", argv[i])) {
+			usage();
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("--verbose", argv[i])) {
+			verbose = True;
+			continue;
+		}
+		if (!strcmp ("--dryrun", argv[i])) {
+			dryrun = True;
+			verbose = True;
+			continue;
+		}
+		if (!strcmp ("--nograb", argv[i])) {
+			grab_server = False;
+			continue;
+		}
+		if (!strcmp("--current", argv[i])) {
+			current = True;
+			continue;
+		}
 
-	    output = find_output_by_name (argv[i]);
-	    if (!output) {
-		output = add_output ();
-		set_name (&output->output, argv[i], name_string|name_xid);
-	    }
-	    
-	    setit_1_2 = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--crtc", argv[i])) {
-	    if (++i >= argc) usage();
-	    if (!output) usage();
-	    set_name (&output->crtc, argv[i], name_xid|name_index);
-	    output->changes |= changes_crtc;
-	    continue;
-	}
-	if (!strcmp ("--mode", argv[i])) {
-	    if (++i >= argc) usage();
-	    if (!output) usage();
-	    set_name (&output->mode, argv[i], name_string|name_xid);
-	    output->changes |= changes_mode;
-	    continue;
-	}
-	if (!strcmp ("--preferred", argv[i])) {
-	    if (!output) usage();
-	    set_name_preferred (&output->mode);
-	    output->changes |= changes_mode;
-	    continue;
-	}
-	if (!strcmp ("--pos", argv[i])) {
-	    if (++i>=argc) usage ();
-	    if (!output) usage();
-	    if (sscanf (argv[i], "%dx%d",
-			&output->x, &output->y) != 2)
-		usage ();
-	    output->changes |= changes_position;
-	    continue;
-	}
-	if (!strcmp ("--rotation", argv[i]) || !strcmp ("--rotate", argv[i])) {
-	    if (++i>=argc) usage ();
-	    if (!output) usage();
-	    for (dirind = 0; dirind < 4; dirind++) {
-		if (strcmp (direction[dirind], argv[i]) == 0) break;
-	    }
-	    if (dirind == 4)
-		usage ();
-	    output->rotation &= ~0xf;
-	    output->rotation |= 1 << dirind;
-	    output->changes |= changes_rotation;
-	    continue;
-	}
-	if (!strcmp ("--reflect", argv[i]) || !strcmp ("--reflection", argv[i])) {
-	    if (++i>=argc) usage ();
-	    if (!output) usage();
-	    for (dirind = 0; dirind < 4; dirind++) {
-		if (strcmp (reflections[dirind], argv[i]) == 0) break;
-	    }
-	    if (dirind == 4)
-		usage ();
-	    output->rotation &= ~(RR_Reflect_X|RR_Reflect_Y);
-	    output->rotation |= dirind * RR_Reflect_X;
-	    output->changes |= changes_reflection;
-	    continue;
-	}
-	if (!strcmp ("--left-of", argv[i])) {
-	    if (++i>=argc) usage ();
-	    if (!output) usage();
-	    output->relation = relation_left_of;
-	    output->relative_to = argv[i];
-	    output->changes |= changes_relation;
-	    continue;
-	}
-	if (!strcmp ("--right-of", argv[i])) {
-	    if (++i>=argc) usage ();
-	    if (!output) usage();
-	    output->relation = relation_right_of;
-	    output->relative_to = argv[i];
-	    output->changes |= changes_relation;
-	    continue;
-	}
-	if (!strcmp ("--above", argv[i])) {
-	    if (++i>=argc) usage ();
-	    if (!output) usage();
-	    output->relation = relation_above;
-	    output->relative_to = argv[i];
-	    output->changes |= changes_relation;
-	    continue;
-	}
-	if (!strcmp ("--below", argv[i])) {
-	    if (++i>=argc) usage ();
-	    if (!output) usage();
-	    output->relation = relation_below;
-	    output->relative_to = argv[i];
-	    output->changes |= changes_relation;
-	    continue;
-	}
-	if (!strcmp ("--same-as", argv[i])) {
-	    if (++i>=argc) usage ();
-	    if (!output) usage();
-	    output->relation = relation_same_as;
-	    output->relative_to = argv[i];
-	    output->changes |= changes_relation;
-	    continue;
-	}
-	if (!strcmp ("--panning", argv[i])) {
-	    XRRPanning *pan;
-	    if (++i>=argc) usage ();
-	    if (!output) usage();
-	    pan = &output->panning;
-	    switch (sscanf (argv[i], "%dx%d+%d+%d/%dx%d+%d+%d/%d/%d/%d/%d",
-			    &pan->width, &pan->height, &pan->left, &pan->top,
-			    &pan->track_width, &pan->track_height,
-			    &pan->track_left, &pan->track_top,
-			    &pan->border_left, &pan->border_top,
-			    &pan->border_right, &pan->border_bottom)) {
-	    case 2:
-		pan->left = pan->top = 0;
-		/* fall through */
-	    case 4:
-		pan->track_left = pan->track_top =
-		    pan->track_width = pan->track_height = 0;
-		/* fall through */
-	    case 8:
-		pan->border_left = pan->border_top =
-		    pan->border_right = pan->border_bottom = 0;
-		/* fall through */
-	    case 12:
-		break;
-	    default:
-		usage ();
-	    }
-	    output->changes |= changes_panning;
-	    continue;
-	}
-	if (!strcmp ("--gamma", argv[i])) {
-	    if (!output) usage();
-	    if (++i>=argc) usage ();
-	    if (sscanf(argv[i], "%f:%f:%f", &output->gamma.red, 
-		    &output->gamma.green, &output->gamma.blue) != 3)
-		usage ();
-	    output->changes |= changes_gamma;
-	    setit_1_2 = True;
-	    continue;
-	}
-	if (!strcmp ("--brightness", argv[i])) {
-	    if (!output) usage();
-	    if (++i>=argc) usage();
-	    if (sscanf(argv[i], "%f", &output->brightness) != 1)
-		usage ();
-	    output->changes |= changes_gamma;
-	    setit_1_2 = True;
-	    continue;
-	}
-	if (!strcmp ("--primary", argv[i])) {
-	    if (!output) usage();
-	    output->changes |= changes_primary;
-	    output->primary = True;
-	    setit_1_2 = True;
-	    continue;
-	}
-	if (!strcmp ("--noprimary", argv[i])) {
-	    no_primary = True;
-	    setit_1_2 = True;
-	    continue;
-	}
-	if (!strcmp ("--set", argv[i])) {
-	    output_prop_t   *prop;
-	    if (!output) usage();
-	    prop = malloc (sizeof (output_prop_t));
-	    prop->next = output->props;
-	    output->props = prop;
-	    if (++i>=argc) usage ();
-	    prop->name = argv[i];
-	    if (++i>=argc) usage ();
-	    prop->value = argv[i];
-	    propit = True;
-	    output->changes |= changes_property;
-	    setit_1_2 = True;
-	    continue;
-	}
-	if (!strcmp ("--scale", argv[i]))
-	{
-	    double  sx, sy;
-	    if (!output) usage();
-	    if (++i>=argc) usage();
-	    if (sscanf (argv[i], "%lfx%lf", &sx, &sy) != 2)
-		usage ();
-	    init_transform (&output->transform);
-	    output->transform.transform.matrix[0][0] = XDoubleToFixed (sx);
-	    output->transform.transform.matrix[1][1] = XDoubleToFixed (sy);
-	    output->transform.transform.matrix[2][2] = XDoubleToFixed (1.0);
-	    if (sx != 1 || sy != 1)
-		output->transform.filter = "bilinear";
-	    else
-		output->transform.filter = "nearest";
-	    output->transform.nparams = 0;
-	    output->transform.params = NULL;
-	    output->changes |= changes_transform;
-	    continue;
-	}
-	if (!strcmp ("--scale-from", argv[i]))
-	{
-	    int w, h;
-	    if (!output) usage();
-	    if (++i>=argc) usage();
-	    if (sscanf (argv[i], "%dx%d", &w, &h) != 2)
-		usage ();
-	    if (w <=0 || h <= 0)
-		usage ();
-	    output->scale_from_w = w;
-	    output->scale_from_h = h;
-	    output->changes |= changes_transform;
-	    continue;
-	}
-	if (!strcmp ("--transform", argv[i])) {
-	    double  transform[3][3];
-	    int	    k, l;
-	    if (!output) usage();
-	    if (++i>=argc) usage ();
-	    init_transform (&output->transform);
-	    if (strcmp (argv[i], "none") != 0)
-	    {
-		if (sscanf(argv[i], "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf",
-			   &transform[0][0],&transform[0][1],&transform[0][2],
-			   &transform[1][0],&transform[1][1],&transform[1][2],
-			   &transform[2][0],&transform[2][1],&transform[2][2])
-		    != 9)
-		    usage ();
-		init_transform (&output->transform);
-		for (k = 0; k < 3; k++)
-		    for (l = 0; l < 3; l++) {
-			output->transform.transform.matrix[k][l] = XDoubleToFixed (transform[k][l]);
-		    }
-		output->transform.filter = "bilinear";
-		output->transform.nparams = 0;
-		output->transform.params = NULL;
-	    }
-	    output->changes |= changes_transform;
-	    continue;
-	}
-	if (!strcmp ("--off", argv[i])) {
-	    if (!output) usage();
-	    set_name_xid (&output->mode, None);
-	    set_name_xid (&output->crtc, None);
-	    output->changes |= changes_mode;
-	    continue;
-	}
-	if (!strcmp ("--fb", argv[i])) {
-	    if (++i>=argc) usage ();
-	    if (sscanf (argv[i], "%dx%d",
-			&fb_width, &fb_height) != 2)
-		usage ();
-	    setit_1_2 = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--fbmm", argv[i])) {
-	    if (++i>=argc) usage ();
-	    if (sscanf (argv[i], "%dx%d",
-			&fb_width_mm, &fb_height_mm) != 2)
-		usage ();
-	    setit_1_2 = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--dpi", argv[i])) {
-	    char *strtod_error;
-	    if (++i>=argc) usage ();
-	    dpi = strtod(argv[i], &strtod_error);
-	    if (argv[i] == strtod_error)
-	    {
-		dpi = 0.0;
-		dpi_output = argv[i];
-	    }
-	    setit_1_2 = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--auto", argv[i])) {
-	    if (output)
-	    {
-		output->automatic = True;
-		output->changes |= changes_automatic;
-	    }
-	    else
-		automatic = True;
-	    setit_1_2 = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--q12", argv[i]))
-	{
-	    query_1_2 = True;
-	    continue;
-	}
-	if (!strcmp ("--q1", argv[i]))
-	{
-	    query_1 = True;
-	    continue;
-	}
-	if (!strcmp ("--newmode", argv[i]))
-	{
-	    umode_t  *m = malloc (sizeof (umode_t));
-	    double    clock;
-	    
-	    ++i;
-	    if (i + 9 >= argc) usage ();
-	    m->mode.name = argv[i];
-	    m->mode.nameLength = strlen (argv[i]);
-	    i++;
-	    clock = check_strtod(argv[i++]);
-	    m->mode.dotClock = clock * 1e6;
+		if (!strcmp ("-s", argv[i]) || !strcmp ("--size", argv[i])) {
+			if (++i>=argc) usage ();
+			if (sscanf (argv[i], "%dx%d", &width, &height) == 2) {
+			have_pixel_size = True;
+			} else {
+			size = check_strtol(argv[i]);
+					if (size < 0) usage();
+				}
+			setit = True;
+			action_requested = True;
+			continue;
+		}
 
-	    m->mode.width = check_strtol(argv[i++]);
-	    m->mode.hSyncStart = check_strtol(argv[i++]);
-	    m->mode.hSyncEnd = check_strtol(argv[i++]);
-	    m->mode.hTotal = check_strtol(argv[i++]);
-	    m->mode.height = check_strtol(argv[i++]);
-	    m->mode.vSyncStart = check_strtol(argv[i++]);
-	    m->mode.vSyncEnd = check_strtol(argv[i++]);
-	    m->mode.vTotal = check_strtol(argv[i++]);
-	    m->mode.modeFlags = 0;
-	    while (i < argc) {
-		int f;
-		
-		for (f = 0; mode_flags[f].string; f++)
-		    if (!strcasecmp (mode_flags[f].string, argv[i]))
+		if (!strcmp ("-r", argv[i]) ||
+			!strcmp ("--rate", argv[i]) ||
+			!strcmp ("--refresh", argv[i]))
+		{
+			if (++i>=argc) usage ();
+			rate = check_strtod(argv[i]);
+			setit = True;
+			if (output)
+			{
+			output->refresh = rate;
+			output->changes |= changes_refresh;
+			setit_1_2 = True;
+			}
+			action_requested = True;
+			continue;
+		}
+
+		if (!strcmp ("-v", argv[i]) || !strcmp ("--version", argv[i])) {
+			version = True;
+			action_requested = True;
+			continue;
+		}
+
+		if (!strcmp ("-x", argv[i])) {
+			reflection |= RR_Reflect_X;
+			setit = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("-y", argv[i])) {
+			reflection |= RR_Reflect_Y;
+			setit = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("--screen", argv[i])) {
+			if (++i>=argc) usage ();
+			screen = check_strtol(argv[i]);
+			if (screen < 0) usage();
+			continue;
+		}
+		if (!strcmp ("-q", argv[i]) || !strcmp ("--query", argv[i])) {
+			query = True;
+			continue;
+		}
+		if (!strcmp ("-o", argv[i]) || !strcmp ("--orientation", argv[i])) {
+			char *endptr;
+			if (++i>=argc) usage ();
+			dirind = strtol(argv[i], &endptr, 10);
+			if (argv[i] == endptr) {
+			for (dirind = 0; dirind < 4; dirind++) {
+				if (strcmp (direction[dirind], argv[i]) == 0) break;
+			}
+			if ((dirind < 0) || (dirind > 3))  usage();
+			}
+			rot = dirind;
+			setit = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("--prop", argv[i]) ||
+			!strcmp ("--props", argv[i]) ||
+			!strcmp ("--madprops", argv[i]) ||
+			!strcmp ("--properties", argv[i]))
+		{
+			query_1_2 = True;
+			properties = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("--output", argv[i])) {
+			if (++i >= argc) usage();
+
+			output = find_output_by_name (argv[i]);
+			if (!output) {
+			output = add_output ();
+			set_name (&output->output, argv[i], name_string|name_xid);
+			}
+			
+			setit_1_2 = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("--crtc", argv[i])) {
+			if (++i >= argc) usage();
+			if (!output) usage();
+			set_name (&output->crtc, argv[i], name_xid|name_index);
+			output->changes |= changes_crtc;
+			continue;
+		}
+		if (!strcmp ("--mode", argv[i])) {
+			if (++i >= argc) usage();
+			if (!output) usage();
+			set_name (&output->mode, argv[i], name_string|name_xid);
+			output->changes |= changes_mode;
+			continue;
+		}
+		if (!strcmp ("--preferred", argv[i])) {
+			if (!output) usage();
+			set_name_preferred (&output->mode);
+			output->changes |= changes_mode;
+			continue;
+		}
+		if (!strcmp ("--pos", argv[i])) {
+			if (++i>=argc) usage ();
+			if (!output) usage();
+			if (sscanf (argv[i], "%dx%d",
+				&output->x, &output->y) != 2)
+			usage ();
+			output->changes |= changes_position;
+			continue;
+		}
+		if (!strcmp ("--rotation", argv[i]) || !strcmp ("--rotate", argv[i])) {
+			if (++i>=argc) usage ();
+			if (!output) usage();
+			for (dirind = 0; dirind < 4; dirind++) {
+			if (strcmp (direction[dirind], argv[i]) == 0) break;
+			}
+			if (dirind == 4)
+			usage ();
+			output->rotation &= ~0xf;
+			output->rotation |= 1 << dirind;
+			output->changes |= changes_rotation;
+			continue;
+		}
+		if (!strcmp ("--reflect", argv[i]) || !strcmp ("--reflection", argv[i])) {
+			if (++i>=argc) usage ();
+			if (!output) usage();
+			for (dirind = 0; dirind < 4; dirind++) {
+			if (strcmp (reflections[dirind], argv[i]) == 0) break;
+			}
+			if (dirind == 4)
+			usage ();
+			output->rotation &= ~(RR_Reflect_X|RR_Reflect_Y);
+			output->rotation |= dirind * RR_Reflect_X;
+			output->changes |= changes_reflection;
+			continue;
+		}
+		if (!strcmp ("--left-of", argv[i])) {
+			if (++i>=argc) usage ();
+			if (!output) usage();
+			output->relation = relation_left_of;
+			output->relative_to = argv[i];
+			output->changes |= changes_relation;
+			continue;
+		}
+		if (!strcmp ("--right-of", argv[i])) {
+			if (++i>=argc) usage ();
+			if (!output) usage();
+			output->relation = relation_right_of;
+			output->relative_to = argv[i];
+			output->changes |= changes_relation;
+			continue;
+		}
+		if (!strcmp ("--above", argv[i])) {
+			if (++i>=argc) usage ();
+			if (!output) usage();
+			output->relation = relation_above;
+			output->relative_to = argv[i];
+			output->changes |= changes_relation;
+			continue;
+		}
+		if (!strcmp ("--below", argv[i])) {
+			if (++i>=argc) usage ();
+			if (!output) usage();
+			output->relation = relation_below;
+			output->relative_to = argv[i];
+			output->changes |= changes_relation;
+			continue;
+		}
+		if (!strcmp ("--same-as", argv[i])) {
+			if (++i>=argc) usage ();
+			if (!output) usage();
+			output->relation = relation_same_as;
+			output->relative_to = argv[i];
+			output->changes |= changes_relation;
+			continue;
+		}
+		if (!strcmp ("--panning", argv[i])) {
+			XRRPanning *pan;
+			if (++i>=argc) usage ();
+			if (!output) usage();
+			pan = &output->panning;
+			switch (sscanf (argv[i], "%dx%d+%d+%d/%dx%d+%d+%d/%d/%d/%d/%d",
+					&pan->width, &pan->height, &pan->left, &pan->top,
+					&pan->track_width, &pan->track_height,
+					&pan->track_left, &pan->track_top,
+					&pan->border_left, &pan->border_top,
+					&pan->border_right, &pan->border_bottom)) {
+			case 2:
+			pan->left = pan->top = 0;
+			/* fall through */
+			case 4:
+			pan->track_left = pan->track_top =
+				pan->track_width = pan->track_height = 0;
+			/* fall through */
+			case 8:
+			pan->border_left = pan->border_top =
+				pan->border_right = pan->border_bottom = 0;
+			/* fall through */
+			case 12:
 			break;
-		
-		if (!mode_flags[f].string)
-		    break;
-    		m->mode.modeFlags |= mode_flags[f].flag;
-    		i++;
-	    }
-	    m->next = umodes;
-	    m->action = umode_create;
-	    umodes = m;
-	    modeit = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--rmmode", argv[i]))
-	{
-	    umode_t  *m = malloc (sizeof (umode_t));
+			default:
+			usage ();
+			}
+			output->changes |= changes_panning;
+			continue;
+		}
+		if (!strcmp ("--gamma", argv[i])) {
+			if (!output) usage();
+			if (++i>=argc) usage ();
+			if (sscanf(argv[i], "%f:%f:%f", &output->gamma.red, 
+				&output->gamma.green, &output->gamma.blue) != 3)
+			usage ();
+			output->changes |= changes_gamma;
+			setit_1_2 = True;
+			continue;
+		}
+		if (!strcmp ("--brightness", argv[i])) {
+			if (!output) usage();
+			if (++i>=argc) usage();
+			if (sscanf(argv[i], "%f", &output->brightness) != 1)
+			usage ();
+			output->changes |= changes_gamma;
+			setit_1_2 = True;
+			continue;
+		}
+		if (!strcmp ("--primary", argv[i])) {
+			if (!output) usage();
+			output->changes |= changes_primary;
+			output->primary = True;
+			setit_1_2 = True;
+			continue;
+		}
+		if (!strcmp ("--noprimary", argv[i])) {
+			no_primary = True;
+			setit_1_2 = True;
+			continue;
+		}
+		if (!strcmp ("--set", argv[i])) {
+			output_prop_t   *prop;
+			if (!output) usage();
+			prop = malloc (sizeof (output_prop_t));
+			prop->next = output->props;
+			output->props = prop;
+			if (++i>=argc) usage ();
+			prop->name = argv[i];
+			if (++i>=argc) usage ();
+			prop->value = argv[i];
+			propit = True;
+			output->changes |= changes_property;
+			setit_1_2 = True;
+			continue;
+		}
+		if (!strcmp ("--scale", argv[i]))
+		{
+			double  sx, sy;
+			if (!output) usage();
+			if (++i>=argc) usage();
+			if (sscanf (argv[i], "%lfx%lf", &sx, &sy) != 2)
+			usage ();
+			init_transform (&output->transform);
+			output->transform.transform.matrix[0][0] = XDoubleToFixed (sx);
+			output->transform.transform.matrix[1][1] = XDoubleToFixed (sy);
+			output->transform.transform.matrix[2][2] = XDoubleToFixed (1.0);
+			if (sx != 1 || sy != 1)
+			output->transform.filter = "bilinear";
+			else
+			output->transform.filter = "nearest";
+			output->transform.nparams = 0;
+			output->transform.params = NULL;
+			output->changes |= changes_transform;
+			continue;
+		}
+		if (!strcmp ("--scale-from", argv[i]))
+		{
+			int w, h;
+			if (!output) usage();
+			if (++i>=argc) usage();
+			if (sscanf (argv[i], "%dx%d", &w, &h) != 2)
+			usage ();
+			if (w <=0 || h <= 0)
+			usage ();
+			output->scale_from_w = w;
+			output->scale_from_h = h;
+			output->changes |= changes_transform;
+			continue;
+		}
+		if (!strcmp ("--transform", argv[i])) {
+			double  transform[3][3];
+			int	    k, l;
+			if (!output) usage();
+			if (++i>=argc) usage ();
+			init_transform (&output->transform);
+			if (strcmp (argv[i], "none") != 0)
+			{
+			if (sscanf(argv[i], "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf",
+				&transform[0][0],&transform[0][1],&transform[0][2],
+				&transform[1][0],&transform[1][1],&transform[1][2],
+				&transform[2][0],&transform[2][1],&transform[2][2])
+				!= 9)
+				usage ();
+			init_transform (&output->transform);
+			for (k = 0; k < 3; k++)
+				for (l = 0; l < 3; l++) {
+				output->transform.transform.matrix[k][l] = XDoubleToFixed (transform[k][l]);
+				}
+			output->transform.filter = "bilinear";
+			output->transform.nparams = 0;
+			output->transform.params = NULL;
+			}
+			output->changes |= changes_transform;
+			continue;
+		}
+		if (!strcmp ("--off", argv[i])) {
+			if (!output) usage();
+			set_name_xid (&output->mode, None);
+			set_name_xid (&output->crtc, None);
+			output->changes |= changes_mode;
+			continue;
+		}
+		if (!strcmp ("--fb", argv[i])) {
+			if (++i>=argc) usage ();
+			if (sscanf (argv[i], "%dx%d",
+				&fb_width, &fb_height) != 2)
+			usage ();
+			setit_1_2 = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("--fbmm", argv[i])) {
+			if (++i>=argc) usage ();
+			if (sscanf (argv[i], "%dx%d",
+				&fb_width_mm, &fb_height_mm) != 2)
+			usage ();
+			setit_1_2 = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("--dpi", argv[i])) {
+			char *strtod_error;
+			if (++i>=argc) usage ();
+			dpi = strtod(argv[i], &strtod_error);
+			if (argv[i] == strtod_error)
+			{
+			dpi = 0.0;
+			dpi_output = argv[i];
+			}
+			setit_1_2 = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("--auto", argv[i])) {
+			if (output)
+			{
+			output->automatic = True;
+			output->changes |= changes_automatic;
+			}
+			else
+			automatic = True;
+			setit_1_2 = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("--q12", argv[i]))
+		{
+			query_1_2 = True;
+			continue;
+		}
+		if (!strcmp ("--q1", argv[i]))
+		{
+			query_1 = True;
+			continue;
+		}
+		if (!strcmp ("--newmode", argv[i]))
+		{
+			umode_t  *m = malloc (sizeof (umode_t));
+			double    clock;
+			
+			++i;
+			if (i + 9 >= argc) usage ();
+			m->mode.name = argv[i];
+			m->mode.nameLength = strlen (argv[i]);
+			i++;
+			clock = check_strtod(argv[i++]);
+			m->mode.dotClock = clock * 1e6;
 
-	    if (++i>=argc) usage ();
-	    set_name (&m->name, argv[i], name_string|name_xid);
-	    m->action = umode_destroy;
-	    m->next = umodes;
-	    umodes = m;
-	    modeit = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--addmode", argv[i]))
-	{
-	    umode_t  *m = malloc (sizeof (umode_t));
+			m->mode.width = check_strtol(argv[i++]);
+			m->mode.hSyncStart = check_strtol(argv[i++]);
+			m->mode.hSyncEnd = check_strtol(argv[i++]);
+			m->mode.hTotal = check_strtol(argv[i++]);
+			m->mode.height = check_strtol(argv[i++]);
+			m->mode.vSyncStart = check_strtol(argv[i++]);
+			m->mode.vSyncEnd = check_strtol(argv[i++]);
+			m->mode.vTotal = check_strtol(argv[i++]);
+			m->mode.modeFlags = 0;
+			while (i < argc) {
+			int f;
+			
+			for (f = 0; mode_flags[f].string; f++)
+				if (!strcasecmp (mode_flags[f].string, argv[i]))
+				break;
+			
+			if (!mode_flags[f].string)
+				break;
+				m->mode.modeFlags |= mode_flags[f].flag;
+				i++;
+			}
+			m->next = umodes;
+			m->action = umode_create;
+			umodes = m;
+			modeit = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("--rmmode", argv[i]))
+		{
+			umode_t  *m = malloc (sizeof (umode_t));
 
-	    if (++i>=argc) usage ();
-	    set_name (&m->output, argv[i], name_string|name_xid);
-	    if (++i>=argc) usage();
-	    set_name (&m->name, argv[i], name_string|name_xid);
-	    m->action = umode_add;
-	    m->next = umodes;
-	    umodes = m;
-	    modeit = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--delmode", argv[i]))
-	{
-	    umode_t  *m = malloc (sizeof (umode_t));
+			if (++i>=argc) usage ();
+			set_name (&m->name, argv[i], name_string|name_xid);
+			m->action = umode_destroy;
+			m->next = umodes;
+			umodes = m;
+			modeit = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("--addmode", argv[i]))
+		{
+			umode_t  *m = malloc (sizeof (umode_t));
 
-	    if (++i>=argc) usage ();
-	    set_name (&m->output, argv[i], name_string|name_xid);
-	    if (++i>=argc) usage();
-	    set_name (&m->name, argv[i], name_string|name_xid);
-	    m->action = umode_delete;
-	    m->next = umodes;
-	    umodes = m;
-	    modeit = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp ("--listproviders", argv[i]))
-	{
-	    providers = True;
-	    action_requested = True;
-	    continue;
-	}
-	if (!strcmp("--setprovideroutputsource", argv[i]))
-	{ 
-	    if (++i>=argc) usage ();
-	    provider_xid = check_strtol(argv[i]);
-	    if (++i>=argc) 
-		output_source_provider_xid = 0;
-	    else
-		output_source_provider_xid = check_strtol(argv[i]);
+			if (++i>=argc) usage ();
+			set_name (&m->output, argv[i], name_string|name_xid);
+			if (++i>=argc) usage();
+			set_name (&m->name, argv[i], name_string|name_xid);
+			m->action = umode_add;
+			m->next = umodes;
+			umodes = m;
+			modeit = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("--delmode", argv[i]))
+		{
+			umode_t  *m = malloc (sizeof (umode_t));
 
-	    if (provider_xid == 0)
+			if (++i>=argc) usage ();
+			set_name (&m->output, argv[i], name_string|name_xid);
+			if (++i>=argc) usage();
+			set_name (&m->name, argv[i], name_string|name_xid);
+			m->action = umode_delete;
+			m->next = umodes;
+			umodes = m;
+			modeit = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp ("--listproviders", argv[i]))
+		{
+			providers = True;
+			action_requested = True;
+			continue;
+		}
+		if (!strcmp("--setprovideroutputsource", argv[i]))
+		{ 
+			if (++i>=argc) usage ();
+			provider_xid = check_strtol(argv[i]);
+			if (++i>=argc) 
+			output_source_provider_xid = 0;
+			else
+			output_source_provider_xid = check_strtol(argv[i]);
+
+			if (provider_xid == 0)
+			usage();
+			action_requested = True;
+			provsetoutsource = True;
+			continue;
+		}
+		if (!strcmp("--setprovideroffloadsink", argv[i]))
+		{ 
+			if (++i>=argc) usage ();
+			provider_xid = check_strtol(argv[i]);
+			if (++i>=argc) 
+			offload_sink_provider_xid = 0;
+			else
+			offload_sink_provider_xid = check_strtol(argv[i]);
+
+			if (provider_xid == 0)
+			usage();
+			action_requested = True;
+			provsetoffsink = True;
+			continue;
+		}
+		// if we got here, there's an error in the argv[]
 		usage();
-	    action_requested = True;
-	    provsetoutsource = True;
-	    continue;
-	}
-	if (!strcmp("--setprovideroffloadsink", argv[i]))
-	{ 
-	    if (++i>=argc) usage ();
-	    provider_xid = check_strtol(argv[i]);
-	    if (++i>=argc) 
-		offload_sink_provider_xid = 0;
-	    else
-		offload_sink_provider_xid = check_strtol(argv[i]);
+    } // end of the for loop parsing the CLI
 
-	    if (provider_xid == 0)
-		usage();
-	    action_requested = True;
-	    provsetoffsink = True;
-	    continue;
-	}
-
-	usage();
-    }
     if (!action_requested)
 	    query = True;
     if (verbose) 

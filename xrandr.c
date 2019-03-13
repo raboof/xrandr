@@ -3223,9 +3223,9 @@ main (int argc, char **argv)
       * If an output was specified to track dpi, use it
       */
       if (dpi_output) {
-        output_t		*output = find_output_by_name (dpi_output);
-        XRROutputInfo	*output_info;
-        XRRModeInfo		*mode_info;
+        output_t      *output = find_output_by_name (dpi_output);
+        XRROutputInfo *output_info;
+        XRRModeInfo   *mode_info;
 
         if (!output) fatal ("Cannot find output %s\n", dpi_output);
 
@@ -3238,10 +3238,10 @@ main (int argc, char **argv)
           * the known physical size
           */
           if (fb_width == mode_info->width &&
-            fb_height == mode_info->height)	{
+              fb_height == mode_info->height)	{
 
-            fb_width_mm = output_info->mm_width;
-            fb_height_mm = output_info->mm_height;
+              fb_width_mm = output_info->mm_width;
+              fb_height_mm = output_info->mm_height;
 
           } else {
             dpi = (25.4 * mode_info->height) / output_info->mm_height;
@@ -3282,332 +3282,343 @@ main (int argc, char **argv)
       * Now apply all of the changes
       */
       apply ();
-      
       XSync (dpy, False);
-
-      exit (0);
+      exit (0); // here the main() terminates
+      
     } // setit_1_2
 
-    if (query_1_2 || (query && has_1_2 && !query_1))
-    {
-  output_t    *output;
-  int	    m;
+
+    if (query_1_2 || (query && has_1_2 && !query_1)) {
+      output_t           *output;
+      int                 m;
   
-#define ModeShown   0x80000000
-  
-  get_screen (current);
-  get_crtcs ();
-  get_outputs ();
+      #define ModeShown   0x80000000
+      
+      get_screen (current);
+      get_crtcs ();
+      get_outputs ();
 
-        printf ("Screen %d: minimum %d x %d, current %d x %d, maximum %d x %d\n",
-    screen, minWidth, minHeight,
-    DisplayWidth (dpy, screen), DisplayHeight(dpy, screen),
-    maxWidth, maxHeight);
+      printf ("Screen %d: minimum %d x %d, current %d x %d, maximum %d x %d\n",
+      screen, minWidth, minHeight,
+      DisplayWidth (dpy, screen), DisplayHeight(dpy, screen),
+      maxWidth, maxHeight);
 
-  for (output = outputs; output; output = output->next)
-  {
-      XRROutputInfo   *output_info = output->output_info;
-      crtc_t	    *crtc = output->crtc_info;
-      XRRCrtcInfo	    *crtc_info = crtc ? crtc->crtc_info : NULL;
-      XRRModeInfo	    *mode = output->mode_info;
-      Atom	    *props;
-      int		    j, nprop;
-      Bool	    *mode_shown;
-      Rotation	    rotations = output_rotations (output);
+      for (output = outputs; output; output = output->next) {
+        XRROutputInfo   *output_info = output->output_info;
+        crtc_t          *crtc = output->crtc_info;
+        XRRCrtcInfo     *crtc_info = crtc ? crtc->crtc_info : NULL;
+        XRRModeInfo     *mode = output->mode_info;
+        Atom            *props;
+        int              j, nprop;
+        Bool            *mode_shown;
+        Rotation         rotations = output_rotations (output);
 
-      printf ("%s %s", output_info->name, connection[output_info->connection]);
-      if (mode)
-      {
-    if (crtc_info) {
-        printf (" %dx%d+%d+%d",
-          crtc_info->width, crtc_info->height,
-          crtc_info->x, crtc_info->y);
-    } else {
-        printf (" %dx%d+%d+%d",
-          mode->width, mode->height, output->x, output->y);
-    }
-    if (verbose)
-        printf (" (0x%x)", (int)mode->id);
-    if (output->rotation != RR_Rotate_0 || verbose)
-    {
-        printf (" %s", 
-          rotation_name (output->rotation));
-        if (output->rotation & (RR_Reflect_X|RR_Reflect_Y))
-      printf (" %s", reflection_name (output->rotation));
-    }
-      }
-      if (rotations != RR_Rotate_0 || verbose)
-      {
-    Bool    first = True;
-    printf (" (");
-    for (i = 0; i < 4; i ++) {
-        if ((rotations >> i) & 1) {
-      if (!first) printf (" "); first = False;
-      printf("%s", direction[i]);
-        }
-    }
-    if (rotations & RR_Reflect_X)
-    {
-        if (!first) printf (" "); first = False;
-        printf ("x axis");
-    }
-    if (rotations & RR_Reflect_Y)
-    {
-        if (!first) printf (" ");
-        printf ("y axis");
-    }
-    printf (")");
-      }
+        printf ("%s %s", output_info->name, connection[output_info->connection]);
+        if (mode) {
 
-      if (mode)
-      {
-    printf (" %dmm x %dmm",
-      (int)output_info->mm_width, (int)output_info->mm_height);
-      }
+          if (crtc_info) printf (" %dx%d+%d+%d",
+            crtc_info->width, crtc_info->height,
+            crtc_info->x, crtc_info->y);
+          else printf (" %dx%d+%d+%d",
+            mode->width, mode->height, output->x, output->y);
 
-      if (crtc && crtc->panning_info && crtc->panning_info->width > 0)
-      {
-    XRRPanning *pan = crtc->panning_info;
-    printf (" panning %dx%d+%d+%d",
-      pan->width, pan->height, pan->left, pan->top);
-    if ((pan->track_width    != 0 &&
-         (pan->track_left    != pan->left		||
-          pan->track_width   != pan->width		||
-          pan->border_left   != 0			||
-          pan->border_right  != 0))			||
-        (pan->track_height   != 0 &&
-         (pan->track_top     != pan->top		||
-          pan->track_height  != pan->height		||
-          pan->border_top    != 0			||
-          pan->border_bottom != 0)))
-        printf (" tracking %dx%d+%d+%d border %d/%d/%d/%d",
-          pan->track_width,  pan->track_height,
-          pan->track_left,   pan->track_top,
-          pan->border_left,  pan->border_top,
-          pan->border_right, pan->border_bottom);
-      }
-      printf ("\n");
-
-      if (verbose)
-      {
-    printf ("\tIdentifier: 0x%x\n", (int)output->output.xid);
-    printf ("\tTimestamp:  %d\n", (int)output_info->timestamp);
-    printf ("\tSubpixel:   %s\n", order[output_info->subpixel_order]);
-          if (output->gamma.red != 0.0 && output->gamma.green != 0.0 && output->gamma.blue != 0.0) {
-        printf ("\tGamma:      %#.2g:%#.2g:%#.2g\n",
-          output->gamma.red, output->gamma.green, output->gamma.blue);
-        printf ("\tBrightness: %#.2g\n", output->brightness);
-    }
-    printf ("\tClones:    ");
-    for (j = 0; j < output_info->nclone; j++)
-    {
-        output_t	*clone = find_output_by_xid (output_info->clones[j]);
-
-        if (clone) printf (" %s", clone->output.string);
-    }
-    printf ("\n");
-    if (output->crtc_info)
-        printf ("\tCRTC:       %d\n", output->crtc_info->crtc.index);
-    printf ("\tCRTCs:     ");
-    for (j = 0; j < output_info->ncrtc; j++)
-    {
-        crtc_t	*crtc = find_crtc_by_xid (output_info->crtcs[j]);
-        if (crtc)
-      printf (" %d", crtc->crtc.index);
-    }
-    printf ("\n");
-    if (output->crtc_info && output->crtc_info->panning_info) {
-        XRRPanning *pan = output->crtc_info->panning_info;
-        printf ("\tPanning:    %dx%d+%d+%d\n",
-          pan->width, pan->height, pan->left, pan->top);
-        printf ("\tTracking:   %dx%d+%d+%d\n",
-          pan->track_width,  pan->track_height,
-          pan->track_left,   pan->track_top);
-        printf ("\tBorder:     %d/%d/%d/%d\n",
-          pan->border_left,  pan->border_top,
-          pan->border_right, pan->border_bottom);
-    }
-      }
-      if (verbose)
-      {
-    int x, y;
-
-    printf ("\tTransform: ");
-    for (y = 0; y < 3; y++)
-    {
-        for (x = 0; x < 3; x++)
-      printf (" %f", XFixedToDouble (output->transform.transform.matrix[y][x]));
-        if (y < 2)
-      printf ("\n\t           ");
-    }
-    if (output->transform.filter)
-        printf ("\n\t           filter: %s", output->transform.filter);
-    printf ("\n");
-      }
-      if (verbose || properties)
-      {
-    props = XRRListOutputProperties (dpy, output->output.xid,
-             &nprop);
-    for (j = 0; j < nprop; j++) {
-        unsigned char *prop;
-        int actual_format;
-        unsigned long nitems, bytes_after;
-        Atom actual_type;
-        XRRPropertyInfo *propinfo;
-        char *atom_name = XGetAtomName (dpy, props[j]);
-        Bool is_edid = strcmp (atom_name, "EDID") == 0;
-        int k, bytes_per_item;
-
-        XRRGetOutputProperty (dpy, output->output.xid, props[j],
-            0, 100, False, False,
-            AnyPropertyType,
-            &actual_type, &actual_format,
-            &nitems, &bytes_after, &prop);
-
-        propinfo = XRRQueryOutputProperty(dpy, output->output.xid,
-                  props[j]);
-
-        bytes_per_item = actual_format / 8;
-
-        printf ("\t%s: ", atom_name);
-
-        if (is_edid)
-        {
-      printf ("\n\t\t");
-        }
-
-        for (k = 0; k < nitems; k++)
-        {
-      if (k != 0)
-      {
-          if ((k % 16) == 0)
-          {
-        printf ("\n\t\t");
+          if (verbose) printf (" (0x%x)", (int)mode->id);
+          
+          if (output->rotation != RR_Rotate_0 || verbose) {
+            printf (" %s", rotation_name (output->rotation));
+            if (output->rotation & (RR_Reflect_X|RR_Reflect_Y))
+            printf (" %s", reflection_name (output->rotation));
           }
-      }
-      print_output_property_value (is_edid, actual_format,
-                 actual_type,
-                 prop + (k * bytes_per_item));
-      if (!is_edid)
-      {
-          printf (" ");
-      }
         }
-        printf ("\n");
 
-        if (propinfo->range && propinfo->num_values > 0)
-        {
-      printf ("\t\trange%s: ",
-              (propinfo->num_values == 2) ? "" : "s");
-      for (k = 0; k < propinfo->num_values / 2; k++)
-      {
-          printf ("(");
-          print_output_property_value (False, 32, actual_type,
-               (unsigned char *) &(propinfo->values[k * 2]));
-          printf (", ");
-          print_output_property_value (False, 32, actual_type,
-               (unsigned char *) &(propinfo->values[k * 2 + 1]));
+        if (rotations != RR_Rotate_0 || verbose) {
+          Bool first = True;
+          printf (" (");
+
+          for (i = 0; i < 4; i ++) {
+            if ((rotations >> i) & 1) {
+              if (!first) printf (" "); first = False;
+              printf("%s", direction[i]); 
+            }
+          }
+
+          if (rotations & RR_Reflect_X) {
+              if (!first) printf (" "); first = False;
+              printf ("x axis");
+          }
+
+          if (rotations & RR_Reflect_Y) {
+              if (!first) printf (" ");
+              printf ("y axis");
+          }
+
           printf (")");
-      }
-      printf ("\n");
-        }
-        if (!propinfo->range && propinfo->num_values > 0)
-        {
-      printf ("\t\tsupported: ");
-      for (k = 0; k < propinfo->num_values; k++)
-      {
-          print_output_property_value (False, 32, actual_type,
-               (unsigned char *) &(propinfo->values[k]));
-      }
-      printf ("\n");
         }
 
-        free(propinfo);
-    }
-      }
+        if (mode)
+          printf (" %dmm x %dmm",
+            (int)output_info->mm_width, 
+            (int)output_info->mm_height);
 
-      if (verbose)
-      {
-    for (j = 0; j < output_info->nmode; j++)
-    {
-        XRRModeInfo	*mode = find_mode_by_xid (output_info->modes[j]);
-        int		f;
+        if (crtc && crtc->panning_info && crtc->panning_info->width > 0) {
+          XRRPanning *pan = crtc->panning_info;
+
+          printf (" panning %dx%d+%d+%d",
+            pan->width, pan->height, pan->left, pan->top);
+          
+          if ((pan->track_width    != 0 &&
+              (pan->track_left     != pan->left     ||
+                pan->track_width   != pan->width    ||
+                pan->border_left   != 0             ||
+                pan->border_right  != 0))           ||
+              (pan->track_height   != 0 &&
+              (pan->track_top      != pan->top      ||
+                pan->track_height  != pan->height   ||
+                pan->border_top    != 0             ||
+                pan->border_bottom != 0)))
+            printf (" tracking %dx%d+%d+%d border %d/%d/%d/%d",
+              pan->track_width,  pan->track_height,
+              pan->track_left,   pan->track_top,
+              pan->border_left,  pan->border_top,
+              pan->border_right, pan->border_bottom);
+
+        } printf ("\n");
+
+        if (verbose) {
+          printf ("\tIdentifier: 0x%x\n", (int)output->output.xid);
+          printf ("\tTimestamp:  %d\n", (int)output_info->timestamp);
+          printf ("\tSubpixel:   %s\n", order[output_info->subpixel_order]);
+          if (output->gamma.red != 0.0 && output->gamma.green != 0.0 && output->gamma.blue != 0.0) {
+            printf ("\tGamma:      %#.2g:%#.2g:%#.2g\n",
+              output->gamma.red, output->gamma.green, output->gamma.blue);
+            printf ("\tBrightness: %#.2g\n", output->brightness);
+          }
+
+          printf ("\tClones:    ");
+          for (j = 0; j < output_info->nclone; j++)
+          {
+              output_t	*clone = find_output_by_xid (output_info->clones[j]);
+              if (clone) printf (" %s", clone->output.string);
+          }
+          printf ("\n");
+
+          if (output->crtc_info)
+              printf ("\tCRTC:       %d\n", output->crtc_info->crtc.index);
+          
+          printf ("\tCRTCs:     ");
+          for (j = 0; j < output_info->ncrtc; j++)
+          {
+            crtc_t	*crtc = find_crtc_by_xid (output_info->crtcs[j]);
+            if (crtc) printf (" %d", crtc->crtc.index);
+          }
+          printf ("\n");
+
+
+          if (output->crtc_info && output->crtc_info->panning_info) {
+            XRRPanning *pan = output->crtc_info->panning_info;
+            
+            printf ("\tPanning:    %dx%d+%d+%d\n",
+              pan->width, pan->height, pan->left, pan->top);
+            
+            printf ("\tTracking:   %dx%d+%d+%d\n",
+              pan->track_width,  pan->track_height,
+              pan->track_left,   pan->track_top);
+            
+            printf ("\tBorder:     %d/%d/%d/%d\n",
+              pan->border_left,  pan->border_top,
+              pan->border_right, pan->border_bottom);
+          }
+        }
+
+        if (verbose) {
+          int x, y;
+
+          printf ("\tTransform: ");
+          for (y = 0; y < 3; y++) {
+            for (x = 0; x < 3; x++)
+              printf (" %f", XFixedToDouble (output->transform.transform.matrix[y][x]));
+            if (y < 2) printf ("\n\t           ");
+          }
+
+          if (output->transform.filter)
+              printf ("\n\t           filter: %s", output->transform.filter);
+          
+          printf ("\n");
+        }
+
+
+        if (verbose || properties) {
+          props = XRRListOutputProperties (dpy, output->output.xid, &nprop);
+          for (j = 0; j < nprop; j++) {
+
+            unsigned char      *prop;
+            int                 actual_format;
+            unsigned long       nitems, bytes_after;
+            Atom                actual_type;
+            XRRPropertyInfo    *propinfo;
+            char               *atom_name = XGetAtomName (dpy, props[j]);
+            Bool                is_edid = strcmp (atom_name, "EDID") == 0;
+            int                 k, bytes_per_item;
+
+            XRRGetOutputProperty (
+              dpy, output->output.xid, props[j],
+              0, 100, False, False,
+              AnyPropertyType,
+              &actual_type, &actual_format,
+              &nitems, &bytes_after, &prop);
+
+            propinfo = XRRQueryOutputProperty(dpy, output->output.xid, props[j]);
+            bytes_per_item = actual_format / 8;
+            printf ("\t%s: ", atom_name);
+
+            if (is_edid) printf ("\n\t\t");
+
+            for (k = 0; k < nitems; k++) {
+              if (k != 0)
+                if ((k % 16) == 0)
+                  printf ("\n\t\t");
+
+              print_output_property_value (
+                is_edid, actual_format,
+                actual_type,
+                prop + (k * bytes_per_item));
+              
+              if (!is_edid) printf (" ");
+            
+            } printf ("\n");
+
+            if (propinfo->range && propinfo->num_values > 0) {
+              printf ("\t\trange%s: ",
+                (propinfo->num_values == 2) ? "" : "s");
+
+              for (k = 0; k < propinfo->num_values / 2; k++) {
+                printf ("(");
+                print_output_property_value (
+                  False, 32, actual_type,
+                  (unsigned char *) &(propinfo->values[k * 2]));
+
+                printf (", ");
+                print_output_property_value (
+                  False, 32, actual_type,
+                  (unsigned char *) &(propinfo->values[k * 2 + 1]));
+
+                printf (")");
+              } printf ("\n");
+            } // propinfo->range && propinfo->num_values > 0
+
+            if (!propinfo->range && propinfo->num_values > 0) {
+              printf ("\t\tsupported: ");
+              for (k = 0; k < propinfo->num_values; k++) {
+                print_output_property_value (
+                  False, 32, actual_type,
+                  (unsigned char *) &(propinfo->values[k]));
+              } printf ("\n");
+            }
+
+            free(propinfo);
+
+          } // j = 0; j < nprop; j++
+        } // verbose || properties
+
+        if (verbose) {
+          for (j = 0; j < output_info->nmode; j++) {
+            XRRModeInfo	*mode = find_mode_by_xid (output_info->modes[j]);
+            int		f;
+            
+            printf ("  %s (0x%x) %6.1fMHz",
+              mode->name, (int)mode->id,
+              (double)mode->dotClock / 1000000.0);
+
+            for (f = 0; mode_flags[f].flag; f++)
+              if (mode->modeFlags & mode_flags[f].flag)
+                printf (" %s", mode_flags[f].string);
+
+            if (mode == output->mode_info) printf (" *current");
+            if (j < output_info->npreferred) printf (" +preferred");
+            printf ("\n");
+            
+            printf (
+              "        h: width  %4d start %4d end %4d total %4d skew %4d clock %6.1fKHz\n",
+              mode->width, mode->hSyncStart, mode->hSyncEnd,
+              mode->hTotal, mode->hSkew, mode_hsync (mode) / 1000);
+            
+            printf (
+              "        v: height %4d start %4d end %4d total %4d           clock %6.1fHz\n",
+              mode->height, mode->vSyncStart, mode->vSyncEnd, mode->vTotal,
+              mode_refresh (mode));
+
+            mode->modeFlags |= ModeShown;
+          } // j = 0; j < output_info->nmode; j++
         
-        printf ("  %s (0x%x) %6.1fMHz",
-          mode->name, (int)mode->id,
-          (double)mode->dotClock / 1000000.0);
-        for (f = 0; mode_flags[f].flag; f++)
-      if (mode->modeFlags & mode_flags[f].flag)
-          printf (" %s", mode_flags[f].string);
-        if (mode == output->mode_info)
-      printf (" *current");
-        if (j < output_info->npreferred)
-      printf (" +preferred");
-        printf ("\n");
-        printf ("        h: width  %4d start %4d end %4d total %4d skew %4d clock %6.1fKHz\n",
-          mode->width, mode->hSyncStart, mode->hSyncEnd,
-          mode->hTotal, mode->hSkew, mode_hsync (mode) / 1000);
-        printf ("        v: height %4d start %4d end %4d total %4d           clock %6.1fHz\n",
-          mode->height, mode->vSyncStart, mode->vSyncEnd, mode->vTotal,
-          mode_refresh (mode));
-        mode->modeFlags |= ModeShown;
-    }
-      }
-      else
-      {
-    mode_shown = calloc (output_info->nmode, sizeof (Bool));
-    if (!mode_shown) fatal ("out of memory\n");
-    for (j = 0; j < output_info->nmode; j++)
-    {
-        int k;
-        XRRModeInfo *jmode, *kmode;
-        
-        if (mode_shown[j]) continue;
-    
-        jmode = find_mode_by_xid (output_info->modes[j]);
-        printf (" ");
-        printf ("  %-12s", jmode->name);
-        for (k = j; k < output_info->nmode; k++)
-        {
-      if (mode_shown[k]) continue;
-      kmode = find_mode_by_xid (output_info->modes[k]);
-      if (strcmp (jmode->name, kmode->name) != 0) continue;
-      mode_shown[k] = True;
-      kmode->modeFlags |= ModeShown;
-      printf (" %6.1f", mode_refresh (kmode));
-      if (kmode == output->mode_info)
-          printf ("*");
-      else
-          printf (" ");
-      if (k < output_info->npreferred)
-          printf ("+");
-      else
-          printf (" ");
-        }
-        printf ("\n");
-    }
-    free (mode_shown);
-      }
-  }
-  for (m = 0; m < res->nmode; m++)
-  {
-      XRRModeInfo	*mode = &res->modes[m];
+        } else {
 
-      if (!(mode->modeFlags & ModeShown))
-      {
-    printf ("  %s (0x%x) %6.1fMHz\n",
-      mode->name, (int)mode->id,
-      (double)mode->dotClock / 1000000.0);
-    printf ("        h: width  %4d start %4d end %4d total %4d skew %4d clock %6.1fKHz\n",
-      mode->width, mode->hSyncStart, mode->hSyncEnd,
-      mode->hTotal, mode->hSkew, mode_hsync (mode) / 1000);
-    printf ("        v: height %4d start %4d end %4d total %4d           clock %6.1fHz\n",
-      mode->height, mode->vSyncStart, mode->vSyncEnd, mode->vTotal,
-      mode_refresh (mode));
-      }
-  }
-  exit (0);
-    }
+          mode_shown = calloc (output_info->nmode, sizeof (Bool));
+          if (!mode_shown) fatal ("out of memory\n");
+
+          for (j = 0; j < output_info->nmode; j++) {
+            int k;
+            XRRModeInfo *jmode, *kmode;
+            
+            if (mode_shown[j]) continue;
+        
+            jmode = find_mode_by_xid (output_info->modes[j]);
+            printf (" ");
+            printf ("  %-12s", jmode->name);
+
+            for (k = j; k < output_info->nmode; k++) {
+              if (mode_shown[k]) continue;
+
+              kmode = find_mode_by_xid (output_info->modes[k]);
+              if (strcmp (jmode->name, kmode->name) != 0) continue;
+
+              mode_shown[k] = True;
+              kmode->modeFlags |= ModeShown;
+              printf (" %6.1f", mode_refresh (kmode));
+
+              if (kmode == output->mode_info)
+                  printf ("*");
+              else
+                  printf (" ");
+
+              if (k < output_info->npreferred)
+                  printf ("+");
+              else
+                  printf (" ");
+
+            } // k++
+            printf ("\n");
+          } // j++
+          free (mode_shown);
+        }
+      } // output->next
+
+
+      for (m = 0; m < res->nmode; m++) {
+        XRRModeInfo	*mode = &res->modes[m];
+
+        if (!(mode->modeFlags & ModeShown)) {
+          printf (
+            "  %s (0x%x) %6.1fMHz\n",
+            mode->name, (int)mode->id,
+            (double)mode->dotClock / 1000000.0);
+
+          printf (
+            "        h: width  %4d start %4d end %4d total %4d skew %4d clock %6.1fKHz\n",
+            mode->width, mode->hSyncStart, mode->hSyncEnd,
+            mode->hTotal, mode->hSkew, mode_hsync (mode) / 1000);
+          
+          printf (
+            "        v: height %4d start %4d end %4d total %4d           clock %6.1fHz\n",
+            mode->height, mode->vSyncStart, mode->vSyncEnd, mode->vTotal,
+            mode_refresh (mode));
+
+        } // ModeShown
+      } // m++
+
+      exit (0);
+    } // query_1_2
+
+
     if (providers) {
   XRRProviderResources *providers;
   int j, k;

@@ -2,6 +2,7 @@
  * Copyright © 2001 Keith Packard, member of The XFree86 Project, Inc.
  * Copyright © 2002 Hewlett Packard Company, Inc.
  * Copyright © 2006 Intel Corporation
+ * Copyright © 2019 Guido Maria Serra <guido@whitehat.berlin>, <zeph@fsfe.org>
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that

@@ -1778,275 +1778,256 @@ mark_changing_crtcs (void) {
 static Bool
 check_crtc_for_output (crtc_t *crtc, output_t *output)
 {
-    int		c;
-    int		l;
-    output_t    *other;
-    
-    for (c = 0; c < output->output_info->ncrtc; c++)
-  if (output->output_info->crtcs[c] == crtc->crtc.xid)
+  int       c;
+  int       l;
+  output_t *other;
+  
+  for (c = 0; c < output->output_info->ncrtc; c++)
+    if (output->output_info->crtcs[c] == crtc->crtc.xid)
       break;
-    if (c == output->output_info->ncrtc)
-  return False;
-    for (other = outputs; other; other = other->next)
-    {
-  if (other == output)
-      continue;
+  
+  if (c == output->output_info->ncrtc) return False;
+  
+  for (other = outputs; other; other = other->next) {
+    if (other == output)          continue;
+    if (other->mode_info == NULL) continue;
+    if (other->crtc_info != crtc) continue;
 
-  if (other->mode_info == NULL)
-      continue;
+    /* see if the output connected to the crtc can clone to this output */
+    for (l = 0; l < output->output_info->nclone; l++)
+      if (output->output_info->clones[l] == other->output.xid) 
+        break;
+    /* not on the list, can't clone */
+    if (l == output->output_info->nclone) return False;
+  } // other->next
 
-  if (other->crtc_info != crtc)
-      continue;
+  if (crtc->noutput) {
+    /* make sure the state matches */
+    if (crtc->mode_info != output->mode_info)    return False;
+    if (crtc->x != output->x)                    return False;
+    if (crtc->y != output->y)                    return False;
+    if (crtc->rotation != output->rotation)      return False;
+    if (!equal_transform (&crtc->current_transform, &output->transform))
+      return False;
+  }
 
-  /* see if the output connected to the crtc can clone to this output */
-  for (l = 0; l < output->output_info->nclone; l++)
-      if (output->output_info->clones[l] == other->output.xid)
-    break;
-  /* not on the list, can't clone */
-  if (l == output->output_info->nclone) 
-      return False;
-    }
+  return True;
+} // check_crtc_for_output()
 
-    if (crtc->noutput)
-    {
-  /* make sure the state matches */
-  if (crtc->mode_info != output->mode_info)
-      return False;
-  if (crtc->x != output->x)
-      return False;
-  if (crtc->y != output->y)
-      return False;
-  if (crtc->rotation != output->rotation)
-      return False;
-  if (!equal_transform (&crtc->current_transform, &output->transform))
-      return False;
-    }
-    return True;
-}
 
 static crtc_t *
-find_crtc_for_output (output_t *output)
-{
-    int	    c;
+find_crtc_for_output (output_t *output) {
+  int    c;
 
-    for (c = 0; c < output->output_info->ncrtc; c++)
-    {
-  crtc_t	    *crtc;
+  for (c = 0; c < output->output_info->ncrtc; c++) {
+    crtc_t   *crtc;
+    
+    crtc = find_crtc_by_xid (output->output_info->crtcs[c]);
+    if (!crtc) fatal ("cannot find crtc 0x%x\n", output->output_info->crtcs[c]);
 
-  crtc = find_crtc_by_xid (output->output_info->crtcs[c]);
-  if (!crtc) fatal ("cannot find crtc 0x%x\n", output->output_info->crtcs[c]);
-
-  if (check_crtc_for_output (crtc, output))
-      return crtc;
-    }
-    return NULL;
+    if (check_crtc_for_output (crtc, output)) return crtc;
+  }
+  return NULL;
 }
 
-static void
-set_positions (void)
-{
-    output_t	*output;
-    Bool	keep_going;
-    Bool	any_set;
-    int		min_x, min_y;
 
-    for (;;)
-    {
-  any_set = False;
-  keep_going = False;
-  for (output = outputs; output; output = output->next)
-  {
+static void
+set_positions (void) {
+  output_t    *output;
+  Bool         keep_going;
+  Bool         any_set;
+  int          min_x, min_y;
+
+  for (;;) {
+    any_set = False;
+    keep_going = False;
+
+    for (output = outputs; output; output = output->next) {
       output_t    *relation;
-      name_t	relation_name;
+      name_t       relation_name;
 
       if (!(output->changes & changes_relation)) continue;
-      
       if (output->mode_info == NULL) continue;
 
       init_name (&relation_name);
       set_name_string (&relation_name, output->relative_to);
+
       relation = find_output (&relation_name);
       if (!relation) fatal ("cannot find output \"%s\"\n", output->relative_to);
-      
-      if (relation->mode_info == NULL) 
-      {
-    output->x = 0;
-    output->y = 0;
-    output->changes |= changes_position;
-    any_set = True;
-    continue;
+  
+      if (relation->mode_info == NULL) {
+        output->x = 0;
+        output->y = 0;
+        output->changes |= changes_position;
+        any_set = True;
+        continue;
       }
       /*
-       * Make sure the dependent object has been set in place
-       */
+      * Make sure the dependent object has been set in place
+      */
       if ((relation->changes & changes_relation) && 
-    !(relation->changes & changes_position))
-      {
-    keep_going = True;
-    continue;
+        !(relation->changes & changes_position)
+      ) {
+        keep_going = True;
+        continue;
       }
-      
+        
       switch (output->relation) {
-      case relation_left_of:
-    output->y = relation->y;
-    output->x = relation->x - mode_width (output->mode_info, output->rotation);
-    break;
-      case relation_right_of:
-    output->y = relation->y;
-    output->x = relation->x + mode_width (relation->mode_info, relation->rotation);
-    break;
-      case relation_above:
-    output->x = relation->x;
-    output->y = relation->y - mode_height (output->mode_info, output->rotation);
-    break;
-      case relation_below:
-    output->x = relation->x;
-    output->y = relation->y + mode_height (relation->mode_info, relation->rotation);
-    break;
-      case relation_same_as:
-    output->x = relation->x;
-    output->y = relation->y;
-      }
+        
+        case relation_left_of:
+          output->y = relation->y;
+          output->x = relation->x - mode_width (output->mode_info, output->rotation);
+          break;
+        
+        case relation_right_of:
+          output->y = relation->y;
+          output->x = relation->x + mode_width (relation->mode_info, relation->rotation);
+          break;
+        
+        case relation_above:
+          output->x = relation->x;
+          output->y = relation->y - mode_height (output->mode_info, output->rotation);
+          break;
+        
+        case relation_below:
+          output->x = relation->x;
+          output->y = relation->y + mode_height (relation->mode_info, relation->rotation);
+          break;
+        
+        case relation_same_as:
+          output->x = relation->x;
+          output->y = relation->y;
+
+      } // switch
       output->changes |= changes_position;
       any_set = True;
-  }
-  if (!keep_going)
-      break;
-  if (!any_set)
-      fatal ("loop in relative position specifications\n");
     }
 
-    /*
-     * Now normalize positions so the upper left corner of all outputs is at 0,0
-     */
-    min_x = 32768;
-    min_y = 32768;
-    for (output = outputs; output; output = output->next)
-    {
-  if (output->mode_info == NULL) continue;
-  
-  if (output->x < min_x) min_x = output->x;
-  if (output->y < min_y) min_y = output->y;
-    }
-    if (min_x || min_y)
-    {
-  /* move all outputs */
-  for (output = outputs; output; output = output->next)
-  {
-      if (output->mode_info == NULL) continue;
+    if (!keep_going) break;
+    if (!any_set)fatal ("loop in relative position specifications\n");
+  } // ;;
 
-      output->x -= min_x;
-      output->y -= min_y;
-      output->changes |= changes_position;
-  }
-    }
-}
+  /*
+    * Now normalize positions so the upper left corner of all outputs is at 0,0
+    */
+  min_x = 32768;
+  min_y = 32768;
+
+  for (output = outputs; output; output = output->next) {
+    if (output->mode_info == NULL) continue;
+    if (output->x < min_x) min_x = output->x;
+    if (output->y < min_y) min_y = output->y;
+  } // output->next
+
+  if (min_x || min_y) {
+    /* move all outputs */
+    for (output = outputs; output; output = output->next) {
+        if (output->mode_info == NULL) continue;
+        output->x -= min_x;
+        output->y -= min_y;
+        output->changes |= changes_position;
+    } // output->next
+  } // min_x || min_y
+} // set_positions()
+
 
 static void
-set_screen_size (void)
-{
-    output_t	*output;
-    Bool	fb_specified = fb_width != 0 && fb_height != 0;
+set_screen_size (void) {
+  output_t    *output;
+  Bool         fb_specified = fb_width != 0 && fb_height != 0;
     
-    for (output = outputs; output; output = output->next)
-    {
-  XRRModeInfo *mode_info = output->mode_info;
-  int	    x, y, w, h;
-  box_t	    bounds;
+  for (output = outputs; output; output = output->next) {
+    XRRModeInfo *mode_info = output->mode_info;
+    int x, y, w, h;
+    box_t bounds;
+    
+    if (!mode_info) continue;
   
-  if (!mode_info) continue;
-  
-  mode_geometry (mode_info, output->rotation,
-           &output->transform.transform,
-           &bounds);
-  x = output->x + bounds.x1;
-  y = output->y + bounds.y1;
-  w = bounds.x2 - bounds.x1;
-  h = bounds.y2 - bounds.y1;
-  /* make sure output fits in specified size */
-  if (fb_specified)
-  {
-      if (x + w > fb_width || y + h > fb_height)
-    warning ("specified screen %dx%d not large enough for output %s (%dx%d+%d+%d)\n",
-       fb_width, fb_height, output->output.string, w, h, x, y);
-  }
-  /* fit fb to output */
-  else
-  {
+    mode_geometry (
+      mode_info, output->rotation,
+      &output->transform.transform,
+      &bounds
+    );
+
+    x = output->x + bounds.x1;
+    y = output->y + bounds.y1;
+    w = bounds.x2 - bounds.x1;
+    h = bounds.y2 - bounds.y1;
+    
+    /* make sure output fits in specified size */
+    if (fb_specified) {
+      if (x + w > fb_width || y + h > fb_height) warning (
+        "specified screen %dx%d not large enough for output %s (%dx%d+%d+%d)\n",
+        fb_width, fb_height, output->output.string, w, h, x, y
+      );
+    
+    /* fit fb to output */
+    } else {
+    
       XRRPanning *pan;
-      if (x + w > fb_width)
-    fb_width = x + w;
-      if (y + h > fb_height)
-    fb_height = y + h;
-      if (output->changes & changes_panning)
-    pan = &output->panning;
-      else
-    pan = output->crtc_info ? output->crtc_info->panning_info : NULL;
-      if (pan && pan->left + pan->width > fb_width)
-    fb_width = pan->left + pan->width;
-      if (pan && pan->top + pan->height > fb_height)
-    fb_height = pan->top + pan->height;
-  }
-    }	
-
-    if (fb_width > maxWidth || fb_height > maxHeight)
-        fatal ("screen cannot be larger than %dx%d (desired size %dx%d)\n",
-         maxWidth, maxHeight, fb_width, fb_height);
-    if (fb_specified)
-    {
-  if (fb_width < minWidth || fb_height < minHeight)
-      fatal ("screen must be at least %dx%d\n", minWidth, minHeight);
+      if (x + w > fb_width)  fb_width = x + w;
+      if (y + h > fb_height) fb_height = y + h;
+      
+      if (output->changes & changes_panning) pan = &output->panning;
+      else pan = output->crtc_info ? output->crtc_info->panning_info : NULL;
+      
+      if (pan && pan->left + pan->width > fb_width)  fb_width = pan->left + pan->width;
+      if (pan && pan->top + pan->height > fb_height) fb_height = pan->top + pan->height;
     }
-    else
-    {
-  if (fb_width < minWidth) fb_width = minWidth;
-  if (fb_height < minHeight) fb_height = minHeight;
-    }
-}
     
+  } // output->next
+
+  if (fb_width > maxWidth || fb_height > maxHeight) fatal (
+    "screen cannot be larger than %dx%d (desired size %dx%d)\n",
+    maxWidth, maxHeight, fb_width, fb_height);
+  
+  if (fb_specified) {
+    if (fb_width < minWidth || fb_height < minHeight) fatal (
+      "screen must be at least %dx%d\n", minWidth, minHeight);
+  } else {
+    if (fb_width < minWidth) fb_width = minWidth;
+    if (fb_height < minHeight) fb_height = minHeight;
+  } // [else] fb_specified
+} // set_screen_size()
+
 
 static void
-disable_outputs (output_t *outputs)
-{
-    while (outputs)
-    {
-  outputs->crtc_info = NULL;
-  outputs = outputs->next;
-    }
+disable_outputs (output_t *outputs) {
+  while (outputs) {
+    outputs->crtc_info = NULL;
+    outputs = outputs->next;
+  }
 }
+
 
 /*
  * find the best mapping from output to crtc available
  */
 static int
-pick_crtcs_score (output_t *outputs)
-{
-    output_t	*output;
-    int		best_score;
-    int		my_score;
-    int		score;
-    crtc_t	*best_crtc;
-    int		c;
+pick_crtcs_score (output_t *outputs) {
+  output_t    *output;
+  int          best_score;
+  int          my_score;
+  int          score;
+  crtc_t      *best_crtc;
+  int          c;
+  
+  if (!outputs) return 0;
     
-    if (!outputs)
-  return 0;
-    
-    output = outputs;
-    outputs = outputs->next;
-    /*
-     * Score with this output disabled
-     */
-    output->crtc_info = NULL;
-    best_score = pick_crtcs_score (outputs);
-    if (output->mode_info == NULL)
-  return best_score;
+  output = outputs;
+  outputs = outputs->next;
+  /*
+    * Score with this output disabled
+    */
+  output->crtc_info = NULL;
+  best_score = pick_crtcs_score (outputs);
+  if (output->mode_info == NULL) return best_score;
 
-    best_crtc = NULL;
-    /* 
-     * Now score with this output any valid crtc
-     */
-    for (c = 0; c < output->output_info->ncrtc; c++)
-    {
+  best_crtc = NULL;
+  /* 
+   * Now score with this output any valid crtc
+   */
+  for (c = 0; c < output->output_info->ncrtc; c++) {
   crtc_t	    *crtc;
 
   crtc = find_crtc_by_xid (output->output_info->crtcs[c]);

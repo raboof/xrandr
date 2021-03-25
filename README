@@ -1,8 +1,7 @@
-xrandr - primitive command line interface to X11 Resize, Rotate, and Reflect
-(RandR) extension
+This fork of xrandr is no longer active.
 
-All questions regarding this software should be directed at the
-Xorg mailing list:
+
+The mailinglist for the upstream package is at:
 
         http://lists.freedesktop.org/mailman/listinfo/xorg
 
@@ -15,12 +14,3 @@ The master development code repository can be found at:
         git://anongit.freedesktop.org/git/xorg/app/xrandr
 
         http://cgit.freedesktop.org/xorg/app/xrandr
-
-For patch submission instructions, see:
-
-	http://www.x.org/wiki/Development/Documentation/SubmittingPatches
-
-For more information on the git code manager, see:
-
-        http://wiki.x.org/wiki/GitPage
-
